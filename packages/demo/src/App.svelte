@@ -30,15 +30,9 @@
 
   let defaultTransactionObject = JSON.stringify(
     {
-      from: '0xD87927847330FC926afd2B66C478A42a004aB4e7',
       to: '0xd0d6d6c5fe4a677d343cc433536bb717bae167dd',
       value: '0xf4240',
-      data: '0xa',
-      chainId: 1,
-      nonce: '0x0',
-      maxFeePerGas: '0x14',
-      maxPriorityFeePerGas: '0x0',
-      gasLimit: '0x14'
+      data: '0xa'
     },
     undefined,
     4
@@ -104,19 +98,19 @@
         id: '0x1',
         token: 'ETH',
         label: 'Ethereum Mainnet',
-        rpcUrl: 'https://mainnet.infura.io/v3/ababf9851fd845d0a167825f97eeb12b'
+        rpcUrl: 'https://mainnet.infura.io/v3/eb347fc6f4b84938bf8b111cc08a4814'
       },
       {
         id: '0x3',
         token: 'tROP',
         label: 'Ethereum Ropsten Testnet',
-        rpcUrl: 'https://ropsten.infura.io/v3/ababf9851fd845d0a167825f97eeb12b'
+        rpcUrl: 'https://ropsten.infura.io/v3/eb347fc6f4b84938bf8b111cc08a4814'
       },
       {
         id: '0x4',
         token: 'rETH',
         label: 'Ethereum Rinkeby Testnet',
-        rpcUrl: 'https://rinkeby.infura.io/v3/ababf9851fd845d0a167825f97eeb12b'
+        rpcUrl: 'https://rinkeby.infura.io/v3/eb347fc6f4b84938bf8b111cc08a4814'
       },
       {
         id: '0x89',
@@ -155,11 +149,13 @@
   // Subscribe to wallet updates
   const wallets$ = onboard.state.select('wallets').pipe(share())
 
-  const signTransactionMessage = provider => {
-    provider.request({
+  const signTransactionMessage = async provider => {
+    console.log('sa', JSON.parse(transactionObject))
+    const result = await provider.request({
       method: 'eth_signTransaction',
       params: [JSON.parse(transactionObject)]
     })
+    console.log({ result })
   }
 
   const signMessage = async (provider, address) => {

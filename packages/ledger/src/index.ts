@@ -16,6 +16,7 @@ import { Buffer } from 'buffer'
 import type Transport from '@ledgerhq/hw-transport'
 import type { providers } from 'ethers'
 import type Eth from '@ledgerhq/hw-app-eth'
+import { StaticJsonRpcProvider } from '@ethersproject/providers'
 
 const LEDGER_LIVE_PATH = `m/44'/60'`
 const LEDGER_DEFAULT_PATH = `m/44'/60'/0'`
@@ -127,11 +128,19 @@ function ledger({
           '@ethersproject/providers'
         )
 
-        const { accountSelect, createEIP1193Provider, ProviderRpcError } =
-          await import('@web3-onboard/common')
+        const {
+          accountSelect,
+          createEIP1193Provider,
+          ProviderRpcError,
+          rpcRequest
+        } = await import('@web3-onboard/common')
 
         const { TransactionFactory: Transaction, Capability } = await import(
           '@ethereumjs/tx'
+        )
+
+        const { default: ledgerService } = await import(
+          '@ledgerhq/hw-app-eth/lib/services/ledger'
         )
 
         const transport: Transport = await getTransport()
@@ -139,6 +148,7 @@ function ledger({
         const eventEmitter = new EventEmitter()
 
         let currentChain: Chain = chains[0]
+        const providers: Record<string, StaticJsonRpcProvider> = {}
 
         const scanAccounts = async ({
           derivationPath,
@@ -148,7 +158,12 @@ function ledger({
           try {
             currentChain =
               chains.find(({ id }: Chain) => id === chainId) || currentChain
-            const provider = new StaticJsonRpcProvider(currentChain.rpcUrl)
+
+            if (!providers[currentChain.id]) {
+              providers[currentChain.id] = new StaticJsonRpcProvider(currentChain.rpcUrl)
+            }
+
+            const provider = providers[currentChain.id]
 
             // Checks to see if this is a custom derivation path
             // If it is then just return the single account
@@ -195,24 +210,18 @@ function ledger({
           return accounts
         }
 
+        // @ts-ignore
         const request: EIP1193Provider['request'] = async ({
           method,
           params
         }) => {
-          const response = await fetch(currentChain.rpcUrl, {
-            method: 'POST',
-            body: JSON.stringify({
-              id: '42',
-              method,
-              params
-            })
-          }).then(res => res.json())
+          const result = await rpcRequest({
+            url: currentChain.rpcUrl,
+            method,
+            params: params || []
+          })
 
-          if (response.result) {
-            return response.result
-          } else {
-            throw response.error
-          }
+          return result as ReturnType<EIP1193Provider['request']>
         }
 
         const ledgerProvider = { request }
@@ -270,18 +279,31 @@ function ledger({
             // Set the `from` field to the currently selected account
             transactionObject = { ...transactionObject, from }
 
+            if (typeof transactionObject.nonce === 'undefined') {
+              const transactionCount = await rpcRequest({
+                url: currentChain.rpcUrl,
+                method: 'eth_getTransactionCount',
+                params: [transactionObject.from, 'latest']
+              })
+
+              transactionObject.nonce = transactionCount
+            }
+
             // @ts-ignore
             const CommonConstructor = Common.default || Common
-            const common = new CommonConstructor({
-              chain:
-                customNetwork || currentChain.hasOwnProperty('id')
-                  ? Number.parseInt(currentChain.id)
-                  : 1,
-              // Berlin is the minimum hardfork that will allow for EIP1559
-              hardfork: Hardfork.Berlin,
-              // List of supported EIPS
-              eips: [1559]
-            })
+            const common =
+              parseInt(currentChain.id) === 137
+                ? CommonConstructor.custom({ chainId: 137 })
+                : new CommonConstructor({
+                    chain:
+                      customNetwork || currentChain.hasOwnProperty('id')
+                        ? Number.parseInt(currentChain.id)
+                        : 1,
+                    // Berlin is the minimum hardfork that will allow for EIP1559
+                    hardfork: Hardfork.Berlin,
+                    // List of supported EIPS
+                    eips: [1559]
+                  })
 
             transactionObject.gasLimit =
               transactionObject.gas || transactionObject.gasLimit
@@ -301,9 +323,17 @@ function ledger({
               unsignedTx = ethUtil.rlp.encode(unsignedTx)
             }
 
+            const hexRawTransaction = unsignedTx.toString('hex')
+
+            // @ts-ignore
+            const resolution = await ledgerService.default.resolveTransaction(
+              hexRawTransaction
+            )
+
             const { v, r, s } = await eth.signTransaction(
               derivationPath,
-              unsignedTx.toString('hex')
+              unsignedTx.toString('hex'),
+              resolution
             )
 
             // Reconstruct the signed transaction

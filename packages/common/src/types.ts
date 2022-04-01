@@ -309,6 +309,7 @@ export interface TransactionObject {
   maxFeePerGas?: string
   maxPriorityFeePerGas?: string
   nonce?: string
+  type?: number
 }
 
 interface BaseRequest {
