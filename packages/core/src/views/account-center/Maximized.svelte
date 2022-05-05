@@ -18,7 +18,6 @@
   import warningIcon from '../../icons/warning'
   import questionIcon from '../../icons/question'
   import { updateAccountCenter } from '../../store/actions'
-  import blocknative from '../../icons/blocknative'
   import DisconnectAllConfirm from './DisconnectAllConfirm.svelte'
 
   function disconnectAllWallets() {
@@ -186,15 +185,6 @@
     margin-top: var(--onboard-spacing-5, var(--spacing-5));
   }
 
-  .powered-by-container {
-    margin-top: 12px;
-  }
-
-  .powered-by {
-    color: var(--onboard-gray-400, var(--gray-400));
-    font-size: var(--onboard-font-size-7, var(--font-size-7));
-    line-height: var(--onboard-font-line-height-3, var(--font-line-height-3));
-  }
 </style>
 
 {#if disconnectConfirmModal}
@@ -414,22 +404,6 @@
             default: en.accountCenter.backToApp
           })}</button
         >
-
-        <a
-          href="https://blocknative.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="flex justify-center items-center powered-by-container"
-        >
-          <span class="powered-by"
-            >{$_('accountCenter.poweredBy', {
-              default: en.accountCenter.poweredBy
-            })}</span
-          >
-          <div class="flex items-center" style="width: 83px; margin-left: 4px;">
-            {@html blocknative}
-          </div>
-        </a>
       </div>
     </div>
   </div>
