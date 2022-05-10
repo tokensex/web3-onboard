@@ -22,9 +22,9 @@ import celoIcon from './icons/celo'
 import gnosisIcon from './icons/gnosis'
 import harmonyOneIcon from './icons/harmony-one'
 import arbitrumIcon from './icons/arbitrum'
+import pulsechain from './icons/pulsechain'
 
 import type { ChainStyle, ConnectedChain } from './types'
-import pulsechain from "./icons/pulsechain";
 
 export function getDevice(): Device {
   const parsed = bowser.getParser(window.navigator.userAgent)
