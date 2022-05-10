@@ -378,6 +378,7 @@ export interface EIP3326Request {
 
 export type AddChainParams = {
   chainId: ChainId
+  blockExplorerUrls?: string
   chainName?: string
   nativeCurrency: {
     name?: string
@@ -424,6 +425,7 @@ export interface Chain {
   namespace?: 'evm'
   id: ChainId
   rpcUrl: string
+  explorerUrl?: string
   label: string
   token: TokenSymbol // eg ETH, BNB, MATIC
   color?: string

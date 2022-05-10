@@ -1405,6 +1405,7 @@ const chain = Joi.object({
     namespace: chainNamespace,
     id: chainId.required(),
     rpcUrl: Joi.string().required(),
+    explorerUrl: Joi.string(),
     label: Joi.string().required(),
     token: Joi.string().required(),
     icon: Joi.string(),
@@ -1900,6 +1901,7 @@ function addNewChain(provider, chain) {
             {
                 chainId: chain.id,
                 chainName: chain.label,
+                blockExplorerUrls: [chain.explorerUrl],
                 nativeCurrency: {
                     name: chain.label,
                     symbol: chain.token,

@@ -317,6 +317,7 @@ export function addNewChain(
       {
         chainId: chain.id,
         chainName: chain.label,
+        blockExplorerUrls: [chain.explorerUrl],
         nativeCurrency: {
           name: chain.label,
           symbol: chain.token,
