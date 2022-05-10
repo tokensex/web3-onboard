@@ -24,6 +24,7 @@ import harmonyOneIcon from './icons/harmony-one'
 import arbitrumIcon from './icons/arbitrum'
 
 import type { ChainStyle, ConnectedChain } from './types'
+import pulsechain from "./icons/pulsechain";
 
 export function getDevice(): Device {
   const parsed = bowser.getParser(window.navigator.userAgent)
@@ -72,6 +73,9 @@ export const chainIdToLabel: Record<string, string> = {
   '0x5': 'Goerli',
   '0x2a': 'Kovan',
   '0x38': 'Binance',
+  '0x61': 'Binance Testnet',
+  '0x171': 'Pulsechain',
+  '0x3AD': 'Pulsechain Testnet',
   '0x89': 'Polygon',
   '0xfa': 'Fantom',
   '0xa': 'Optimism',
@@ -106,6 +110,18 @@ export const chainStyles: Record<string, ChainStyle> = {
   '0x38': {
     icon: binanceIcon,
     color: '#F3BA2F'
+  },
+  '0x61': {
+    icon: binanceIcon,
+    color: '#F3BA2F'
+  },
+  '0x171': {
+    icon: pulsechain,
+    color: 'rgba(243,186,47,0)'
+  },
+  '0x3AD': {
+    icon: pulsechain,
+    color: 'rgba(243,186,47,0)'
   },
   '0x89': {
     icon: polygonIcon,
