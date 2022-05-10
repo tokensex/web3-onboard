@@ -75,7 +75,7 @@ export const chainIdToLabel: Record<string, string> = {
   '0x38': 'Binance',
   '0x61': 'Binance Testnet',
   '0x171': 'Pulsechain',
-  '0x3AD': 'Pulsechain Testnet',
+  '0x3ad': 'Pulsechain Testnet',
   '0x89': 'Polygon',
   '0xfa': 'Fantom',
   '0xa': 'Optimism',
@@ -119,7 +119,7 @@ export const chainStyles: Record<string, ChainStyle> = {
     icon: pulsechain,
     color: 'rgba(243,186,47,0)'
   },
-  '0x3AD': {
+  '0x3ad': {
     icon: pulsechain,
     color: 'rgba(243,186,47,0)'
   },
