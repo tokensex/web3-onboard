@@ -98,6 +98,8 @@ const walletModule = Joi.object({
 
 const walletInit = Joi.array().items(Joi.function()).required()
 
+const locale = Joi.string()
+
 const accountCenterPosition = Joi.string().valid(
   'topRight',
   'bottomRight',
@@ -200,4 +202,8 @@ export function validateAccountCenterUpdate(
 
 export function validateWalletInit(data: WalletInit[]): ValidateReturn {
   return validate(walletInit, data)
+}
+
+export function validateLocale(data: string): ValidateReturn {
+  return validate(locale, data)
 }
