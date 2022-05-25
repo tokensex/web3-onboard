@@ -19,6 +19,7 @@
   import questionIcon from '../../icons/question'
   import { updateAccountCenter } from '../../store/actions'
   import DisconnectAllConfirm from './DisconnectAllConfirm.svelte'
+  import { getDevice } from '../../utils'
 
   function disconnectAllWallets() {
     $wallets$.forEach(({ label }) => disconnect({ label }))
@@ -43,12 +44,13 @@
   )
 
   const { position } = state.get().accountCenter
+  const device = getDevice()
 </script>
 
 <style>
   .outer-container {
     background-color: var(--onboard-gray-600, var(--gray-600));
-    border-radius: 16px;
+    border-radius: var(--onboard-border-radius-3, var(--border-radius-3));
     width: 100%;
     filter: drop-shadow(0px 4px 16px rgba(178, 178, 178, 0.2));
   }
@@ -218,38 +220,40 @@
           />
         {/each}
       </div>
-
       <!-- actions -->
       <div class="actions flex flex-column items-start">
-        <!-- connect another wallet -->
-        <div
-          on:click={() => connect()}
-          class="action-container flex items-center pointer"
-        >
-          <div class="plus-icon flex items-center justify-center">
-            {@html plusCircleIcon}
-          </div>
-          <span class="action-text"
-            >{$_('accountCenter.connectAnotherWallet', {
-              default: en.accountCenter.connectAnotherWallet
-            })}</span
+        <!-- Hide for Mobile  -->
+        {#if device.type === 'desktop'}
+          <!-- connect another wallet -->
+          <div
+            on:click={() => connect()}
+            class="action-container flex items-center pointer"
           >
-        </div>
+            <div class="plus-icon flex items-center justify-center">
+              {@html plusCircleIcon}
+            </div>
+            <span class="action-text"
+              >{$_('accountCenter.connectAnotherWallet', {
+                default: en.accountCenter.connectAnotherWallet
+              })}</span
+            >
+          </div>
 
-        <!-- disconnect all wallets -->
-        <div
-          on:click={() => (disconnectConfirmModal = true)}
-          class="action-container flex items-center mt pointer"
-        >
-          <div class="arrow-forward flex items-center justify-center">
-            {@html arrowForwardIcon}
-          </div>
-          <span class="action-text"
-            >{$_('accountCenter.disconnectAllWallets', {
-              default: en.accountCenter.disconnectAllWallets
-            })}</span
+          <!-- disconnect all wallets -->
+          <div
+            on:click={() => (disconnectConfirmModal = true)}
+            class="action-container flex items-center mt pointer"
           >
-        </div>
+            <div class="arrow-forward flex items-center justify-center">
+              {@html arrowForwardIcon}
+            </div>
+            <span class="action-text"
+              >{$_('accountCenter.disconnectAllWallets', {
+                default: en.accountCenter.disconnectAllWallets
+              })}</span
+            >
+          </div>
+        {/if}
       </div>
     </div>
 
