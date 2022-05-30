@@ -15,3 +15,4 @@ export declare const unrecognizedChainStyle: {
 export declare function getDefaultChainStyles(chainId: string): ChainStyle | undefined;
 export declare function connectedToValidAppChain(walletConnectedChain: ConnectedChain, chains: Chain[]): boolean;
 export declare function initializeWalletModules(modules: WalletInit[], device: Device): WalletModule[];
+export declare function uniqueWalletsByLabel(walletModuleList: WalletModule[]): WalletModule[];

@@ -14,4 +14,5 @@ export declare function validateSetChainOptions(data: {
 }): ValidateReturn;
 export declare function validateAccountCenterUpdate(data: AccountCenter | Partial<AccountCenter>): ValidateReturn;
 export declare function validateWalletInit(data: WalletInit[]): ValidateReturn;
+export declare function validateLocale(data: string): ValidateReturn;
 export {};

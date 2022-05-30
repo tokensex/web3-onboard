@@ -1,27 +1,13 @@
 import { ProviderRpcErrorCode, SofiaProRegular } from '@web3-onboard/common';
 import { BehaviorSubject, Subject, defer, firstValueFrom, fromEventPattern, takeUntil as takeUntil$1, merge as merge$1 } from 'rxjs';
 import { distinctUntilKeyChanged, pluck, filter, shareReplay, withLatestFrom, take, takeUntil, share, switchMap, mapTo, skip, debounceTime, distinctUntilChanged, startWith } from 'rxjs/operators';
+import { locale as locale$1, addMessages, init as init$2, getLocaleFromNavigator, _ } from 'svelte-i18n';
 import bowser from 'bowser';
 import Joi from 'joi';
 import partition from 'lodash.partition';
 import { providers, utils, BigNumber } from 'ethers';
-import { addMessages, init as init$2, getLocaleFromNavigator, _ } from 'svelte-i18n';
 import merge from 'lodash.merge';
 import EventEmitter from 'eventemitter3';
-
-const APP_INITIAL_STATE = {
-    wallets: [],
-    walletModules: [],
-    chains: [],
-    accountCenter: {
-        enabled: true,
-        position: 'topRight',
-        expanded: false
-    }
-};
-const STORAGE_KEYS = {
-    TERMS_AGREEMENT: 'onboard.js:agreement'
-};
 
 var ethereumIcon = `
   <svg height="100%" viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -255,6 +241,25 @@ function initializeWalletModules(modules, device) {
         return acc;
     }, []);
 }
+function uniqueWalletsByLabel(walletModuleList) {
+    return walletModuleList.filter((wallet, i) => walletModuleList.findIndex((innerWallet) => innerWallet.label === wallet.label) === i);
+}
+
+const APP_INITIAL_STATE = {
+    wallets: [],
+    walletModules: [],
+    chains: [],
+    accountCenter: {
+        enabled: true,
+        position: 'topRight',
+        expanded: false,
+        minimal: getDevice().type === 'mobile'
+    },
+    locale: ''
+};
+const STORAGE_KEYS = {
+    TERMS_AGREEMENT: 'onboard.js:agreement'
+};
 
 const ADD_CHAINS = 'add_chains';
 const RESET_STORE = 'reset_store';
@@ -264,6 +269,7 @@ const REMOVE_WALLET = 'remove_wallet';
 const UPDATE_ACCOUNT = 'update_account';
 const UPDATE_ACCOUNT_CENTER = 'update_account_center';
 const SET_WALLET_MODULES = 'set_wallet_modules';
+const SET_LOCALE = 'set_locale';
 
 function reducer(state, action) {
     const { type, payload } = action;
@@ -335,6 +341,14 @@ function reducer(state, action) {
             return {
                 ...state,
                 walletModules: payload
+            };
+        }
+        case SET_LOCALE: {
+            // Set the locale in the svelte-i18n internal state
+            locale$1.set(payload);
+            return {
+                ...state,
+                locale: payload
             };
         }
         case RESET_STORE:
@@ -1424,11 +1438,11 @@ const ens = Joi.any().allow(Joi.object({
 const balance = Joi.any().allow(Joi.object({
     eth: Joi.number()
 }).unknown(), null);
-const account = {
+const account = Joi.object({
     address: Joi.string().required(),
     ens,
     balance
-};
+});
 const chains = Joi.array().items(chain);
 const accounts = Joi.array().items(account);
 const wallet = Joi.object({
@@ -1466,6 +1480,7 @@ Joi.object({
     getInterface: Joi.function().arity(1).required()
 });
 const walletInit = Joi.array().items(Joi.function()).required();
+const locale = Joi.string();
 const accountCenterPosition = Joi.string().valid('topRight', 'bottomRight', 'bottomLeft', 'topLeft');
 const initOptions = Joi.object({
     wallets: walletInit,
@@ -1475,11 +1490,13 @@ const initOptions = Joi.object({
     accountCenter: Joi.object({
         desktop: Joi.object({
             enabled: Joi.boolean(),
+            minimal: Joi.boolean(),
             position: accountCenterPosition
         }),
         mobile: Joi.object({
             enabled: Joi.boolean(),
-            position: accountCenterPosition
+            minimal: Joi.boolean(),
+            position: accountCenterPosition,
         })
     })
 });
@@ -1503,7 +1520,8 @@ const setChainOptions = Joi.object({
 const accountCenter$1 = Joi.object({
     enabled: Joi.boolean(),
     position: accountCenterPosition,
-    expanded: Joi.boolean()
+    expanded: Joi.boolean(),
+    minimal: Joi.boolean()
 });
 function validate(validator, data) {
     const result = validator.validate(data);
@@ -1532,6 +1550,9 @@ function validateAccountCenterUpdate(data) {
 }
 function validateWalletInit(data) {
     return validate(walletInit, data);
+}
+function validateLocale(data) {
+    return validate(locale, data);
 }
 
 function addChains(chains) {
@@ -1619,9 +1640,21 @@ function setWalletModules(wallets) {
         throw error;
     }
     const modules = initializeWalletModules(wallets, internalState$.getValue().device);
+    const dedupedWallets = uniqueWalletsByLabel(modules);
     const action = {
         type: SET_WALLET_MODULES,
-        payload: modules
+        payload: dedupedWallets
+    };
+    dispatch$1(action);
+}
+function setLocale(locale) {
+    const error = validateLocale(locale);
+    if (error) {
+        throw error;
+    }
+    const action = {
+        type: SET_LOCALE,
+        payload: locale
     };
     dispatch$1(action);
 }
@@ -2036,7 +2069,7 @@ var accountCenter = {
 	gettingStartedGuide: "Getting Started Guide",
 	smartContracts: "Smart Contract(s)",
 	explore: "Explore",
-	backToApp: "Back to App",
+	backToApp: "Back to dapp",
 	poweredBy: "powered by",
 	addAccount: "Add Account",
 	setPrimaryAccount: "Set Primary Account",
@@ -2077,11 +2110,11 @@ var closeIcon = `
 
 /* src/views/shared/CloseButton.svelte generated by Svelte v3.46.4 */
 
-function add_css$n(target) {
+function add_css$o(target) {
 	append_styles(target, "svelte-gtn9pc", ".close-button.svelte-gtn9pc{padding:0.25rem;background:var(\n      --onboard-close-button-background,\n      var(--onboard-gray-100, var(--gray-100))\n    );border-radius:40px;color:var(\n      --onboard-close-button-color,\n      var(--onboard-gray-400, var(--gray-400))\n    )}.close-icon.svelte-gtn9pc{width:24px}");
 }
 
-function create_fragment$n(ctx) {
+function create_fragment$o(ctx) {
 	let div2;
 	let div1;
 	let div0;
@@ -2113,7 +2146,7 @@ function create_fragment$n(ctx) {
 class CloseButton extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, null, create_fragment$n, safe_not_equal, {}, add_css$n);
+		init$1(this, options, null, create_fragment$o, safe_not_equal, {}, add_css$o);
 	}
 }
 
@@ -2151,11 +2184,11 @@ function fly(node, { delay = 0, duration = 400, easing = cubicOut, x = 0, y = 0,
 
 /* src/views/shared/Modal.svelte generated by Svelte v3.46.4 */
 
-function add_css$m(target) {
-	append_styles(target, "svelte-v0g0y8", "section.svelte-v0g0y8{top:0;left:0;pointer-events:none;z-index:var(--onboard-modal-z-index, var(--modal-z-index))}.background.svelte-v0g0y8{width:100vw;height:100vh;background:var(--onboard-modal-backdrop, var(--modal-backdrop));pointer-events:all}.max-height.svelte-v0g0y8{max-height:calc(100vh - 2rem)}.modal-position.svelte-v0g0y8{top:var(--onboard-modal-top, var(--modal-top));bottom:var(--onboard-modal-bottom, var(--modal-bottom));left:var(--onboard-modal-left, var(--modal-left));right:var(--onboard-modal-right, var(--modal-right))}.modal-overflow.svelte-v0g0y8{overflow:hidden}.modal-styling.svelte-v0g0y8{border-radius:var(--onboard-modal-border-radius, var(--border-radius-1));box-shadow:var(--onboard-modal-box-shadow, var(--box-shadow-0))}.modal.svelte-v0g0y8{border-radius:var(--onboard-modal-border-radius, var(--border-radius-1));overflow-y:auto;background:white}@media all and (max-width: 520px){.relative.svelte-v0g0y8{width:100vw}.modal-overflow.svelte-v0g0y8{width:100%}.modal.svelte-v0g0y8{width:100%}}");
+function add_css$n(target) {
+	append_styles(target, "svelte-lryths", "section.svelte-lryths{top:0;left:0;pointer-events:none;z-index:var(--onboard-modal-z-index, var(--modal-z-index))}.background.svelte-lryths{width:100vw;height:100vh;background:var(--onboard-modal-backdrop, var(--modal-backdrop));pointer-events:all}.max-height.svelte-lryths{max-height:calc(100vh - 2rem)}.modal-position.svelte-lryths{top:var(--onboard-modal-top, var(--modal-top));bottom:var(--onboard-modal-bottom, var(--modal-bottom));left:var(--onboard-modal-left, var(--modal-left));right:var(--onboard-modal-right, var(--modal-right))}.modal-overflow.svelte-lryths{overflow:hidden}.modal-styling.svelte-lryths{border-radius:var(--onboard-modal-border-radius, var(--border-radius-1));box-shadow:var(--onboard-modal-box-shadow, var(--box-shadow-0))}.modal.svelte-lryths{border-radius:var(--onboard-modal-border-radius, var(--border-radius-1));overflow-y:auto;background:white}@media all and (max-width: 520px){.relative.svelte-lryths{width:100vw}.modal-overflow.svelte-lryths{width:100%}.modal.svelte-lryths{width:100%}}");
 }
 
-function create_fragment$m(ctx) {
+function create_fragment$n(ctx) {
 	let section;
 	let div4;
 	let div3;
@@ -2178,12 +2211,12 @@ function create_fragment$m(ctx) {
 			div1 = element("div");
 			div0 = element("div");
 			if (default_slot) default_slot.c();
-			attr(div0, "class", "modal relative svelte-v0g0y8");
-			attr(div1, "class", "modal-overflow modal-styling relative flex justify-center svelte-v0g0y8");
-			attr(div2, "class", "flex relative max-height svelte-v0g0y8");
-			attr(div3, "class", "flex modal-position absolute svelte-v0g0y8");
-			attr(div4, "class", "background flex items-center justify-center relative svelte-v0g0y8");
-			attr(section, "class", "fixed svelte-v0g0y8");
+			attr(div0, "class", "modal relative svelte-lryths");
+			attr(div1, "class", "modal-overflow modal-styling relative flex justify-center svelte-lryths");
+			attr(div2, "class", "flex relative max-height svelte-lryths");
+			attr(div3, "class", "flex modal-position absolute svelte-lryths");
+			attr(div4, "class", "background flex items-center justify-center relative svelte-lryths");
+			attr(section, "class", "fixed svelte-lryths");
 		},
 		m(target, anchor) {
 			insert(target, section, anchor);
@@ -2255,8 +2288,38 @@ function create_fragment$m(ctx) {
 	};
 }
 
-function instance$m($$self, $$props, $$invalidate) {
+function instance$n($$self, $$props, $$invalidate) {
 	let { $$slots: slots = {}, $$scope } = $$props;
+	const device = getDevice();
+	const body = document.body;
+	const html = document.documentElement;
+
+	const trackYScrollPosition = () => {
+		document.documentElement.style.setProperty('--scroll-y', `${window.scrollY}px`);
+	};
+
+	onMount(() => {
+		window.addEventListener('scroll', trackYScrollPosition, { passive: true });
+		const scrollY = html.style.getPropertyValue('--scroll-y');
+
+		device.type === 'mobile'
+		? html.style.position = 'fixed'
+		: html.style.overflow = 'hidden';
+
+		body.style.top = `-${scrollY}`;
+	});
+
+	onDestroy(() => {
+		device.type === 'mobile'
+		? html.style.position = ''
+		: html.style.overflow = 'auto';
+
+		const scrollY = body.style.top;
+		body.style.top = '';
+		window.scrollTo(0, parseInt(scrollY || '0') * -1);
+		window.removeEventListener('scroll', trackYScrollPosition);
+	});
+
 	let { close } = $$props;
 
 	function click_handler(event) {
@@ -2274,13 +2337,13 @@ function instance$m($$self, $$props, $$invalidate) {
 class Modal extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$m, create_fragment$m, safe_not_equal, { close: 0 }, add_css$m);
+		init$1(this, options, instance$n, create_fragment$n, safe_not_equal, { close: 0 }, add_css$n);
 	}
 }
 
 /* src/views/connect/Agreement.svelte generated by Svelte v3.46.4 */
 
-function add_css$l(target) {
+function add_css$m(target) {
 	append_styles(target, "svelte-wp0cfb", ".container.svelte-wp0cfb{padding:var(--onboard-spacing-4, var(--spacing-4));font-size:var(--onboard-font-size-6, var(--font-size-6));line-height:24px}input.svelte-wp0cfb{height:1rem;width:1rem;margin-right:0.5rem}.spacer.svelte-wp0cfb{padding-top:var(--onboard-spacing-4, var(--spacing-4))}");
 }
 
@@ -2320,7 +2383,7 @@ function create_if_block$f(ctx) {
 	let mounted;
 	let dispose;
 	let if_block0 = /*termsUrl*/ ctx[2] && create_if_block_2$6(ctx);
-	let if_block1 = /*privacyUrl*/ ctx[3] && create_if_block_1$7(ctx);
+	let if_block1 = /*privacyUrl*/ ctx[3] && create_if_block_1$8(ctx);
 
 	return {
 		c() {
@@ -2420,7 +2483,7 @@ function create_if_block_2$6(ctx) {
 }
 
 // (56:8) {#if privacyUrl}
-function create_if_block_1$7(ctx) {
+function create_if_block_1$8(ctx) {
 	let a;
 	let t0_value = /*$_*/ ctx[1]('connect.selectingWallet.agreement.privacy') + "";
 	let t0;
@@ -2449,7 +2512,7 @@ function create_if_block_1$7(ctx) {
 	};
 }
 
-function create_fragment$l(ctx) {
+function create_fragment$m(ctx) {
 	let if_block_anchor;
 
 	function select_block_type(ctx, dirty) {
@@ -2481,7 +2544,7 @@ function create_fragment$l(ctx) {
 	};
 }
 
-function instance$l($$self, $$props, $$invalidate) {
+function instance$m($$self, $$props, $$invalidate) {
 	let $_;
 	component_subscribe($$self, _, $$value => $$invalidate(1, $_ = $$value));
 	let { agreed } = $$props;
@@ -2527,7 +2590,7 @@ function instance$l($$self, $$props, $$invalidate) {
 class Agreement extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$l, create_fragment$l, safe_not_equal, { agreed: 0 }, add_css$l);
+		init$1(this, options, instance$m, create_fragment$m, safe_not_equal, { agreed: 0 }, add_css$m);
 	}
 }
 
@@ -2539,7 +2602,7 @@ var success = `
 
 /* src/views/shared/Spinner.svelte generated by Svelte v3.46.4 */
 
-function add_css$k(target) {
+function add_css$l(target) {
 	append_styles(target, "svelte-1le5672", ".loading-container.svelte-1le5672.svelte-1le5672{font-family:inherit;font-size:inherit;color:inherit}span.svelte-1le5672.svelte-1le5672{font-family:inherit;font-size:0.889em;margin-top:1rem}.loading.svelte-1le5672.svelte-1le5672{display:inline-block}.loading.svelte-1le5672 div.svelte-1le5672{font-size:inherit;display:block;position:absolute;border:3px solid;border-radius:50%;animation:svelte-1le5672-bn-loading 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;border-color:currentColor transparent transparent transparent}.loading.svelte-1le5672 .loading-first.svelte-1le5672{animation-delay:-0.45s}.loading.svelte-1le5672 .loading-second.svelte-1le5672{animation-delay:-0.3s}.loading.svelte-1le5672 .loading-third.svelte-1le5672{animation-delay:-0.15s}@keyframes svelte-1le5672-bn-loading{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}");
 }
 
@@ -2567,7 +2630,7 @@ function create_if_block$e(ctx) {
 	};
 }
 
-function create_fragment$k(ctx) {
+function create_fragment$l(ctx) {
 	let div4;
 	let div3;
 	let div0;
@@ -2653,7 +2716,7 @@ function create_fragment$k(ctx) {
 	};
 }
 
-function instance$k($$self, $$props, $$invalidate) {
+function instance$l($$self, $$props, $$invalidate) {
 	let { description = '' } = $$props;
 	let { size = '2rem' } = $$props;
 
@@ -2668,13 +2731,13 @@ function instance$k($$self, $$props, $$invalidate) {
 class Spinner extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$k, create_fragment$k, safe_not_equal, { description: 0, size: 1 }, add_css$k);
+		init$1(this, options, instance$l, create_fragment$l, safe_not_equal, { description: 0, size: 1 }, add_css$l);
 	}
 }
 
 /* src/views/shared/WalletAppBadge.svelte generated by Svelte v3.46.4 */
 
-function add_css$j(target) {
+function add_css$k(target) {
 	append_styles(target, "svelte-1wcty06", ".icon.svelte-1wcty06{height:100%}.border-yellow.svelte-1wcty06{border:1px solid var(--onboard-warning-500, var(--warning-500))}.border-gray.svelte-1wcty06{border:1px solid var(--onboard-gray-400, var(--gray-400))}.border-green.svelte-1wcty06{border:1px solid var(--onboard-success-500, var(--success-500))}.border-dark-green.svelte-1wcty06{border:1px solid var(--onboard-success-700, var(--success-700))}.border-blue.svelte-1wcty06{border:1px solid\n      var(\n        --onboard-wallet-app-icon-border-color,\n        var(--onboard-primary-300, var(--primary-300))\n      )}.border-dark-blue.svelte-1wcty06{border:1px solid\n      var(\n        --onboard-wallet-app-icon-border-color,\n        var(--onboard-primary-600, var(--primary-600))\n      )}.border-transparent.svelte-1wcty06{border:1px solid transparent}.border-black.svelte-1wcty06{border:1px solid var(--onboard-gray-600, var(--gray-600))}.background-gray.svelte-1wcty06{background:var(--onboard-gray-500, var(--gray-500))}.background-light-gray.svelte-1wcty06{background:var(--onboard-gray-100, var(--gray-100))}.background-light-blue.svelte-1wcty06{background:var(--onboard-primary-100, var(--primary-100))}.background-green.svelte-1wcty06{background:var(--onboard-success-100, var(--success-100))}.background-white.svelte-1wcty06{background:var(--onboard-white, var(--white))}.background-transparent.svelte-1wcty06{background:transparent}@keyframes svelte-1wcty06-pulse{from{opacity:0}to{opacity:1}}.placeholder-icon.svelte-1wcty06{width:100%;height:100%;background:var(--onboard-gray-100, var(--gray-100));border-radius:32px;animation:svelte-1wcty06-pulse infinite 750ms alternate ease-in-out}.spinner-container.svelte-1wcty06{color:var(--onboard-primary-300, var(--primary-300))}img.svelte-1wcty06{max-width:100%;height:auto}");
 }
 
@@ -2787,7 +2850,7 @@ function create_then_block(ctx) {
 	function select_block_type_1(ctx, dirty) {
 		if (dirty & /*icon*/ 2) show_if = null;
 		if (show_if == null) show_if = !!isSVG(/*iconLoaded*/ ctx[11]);
-		if (show_if) return create_if_block_1$6;
+		if (show_if) return create_if_block_1$7;
 		return create_else_block_1$1;
 	}
 
@@ -2860,7 +2923,7 @@ function create_else_block_1$1(ctx) {
 }
 
 // (143:8) {#if isSVG(iconLoaded)}
-function create_if_block_1$6(ctx) {
+function create_if_block_1$7(ctx) {
 	let html_tag;
 	let raw_value = /*iconLoaded*/ ctx[11] + "";
 	let html_anchor;
@@ -2906,7 +2969,7 @@ function create_pending_block(ctx) {
 	};
 }
 
-function create_fragment$j(ctx) {
+function create_fragment$k(ctx) {
 	let div;
 	let current_block_type_index;
 	let if_block;
@@ -3087,7 +3150,7 @@ function create_fragment$j(ctx) {
 	};
 }
 
-function instance$j($$self, $$props, $$invalidate) {
+function instance$k($$self, $$props, $$invalidate) {
 	let { $$slots: slots = {}, $$scope } = $$props;
 	let { size } = $$props;
 	let { icon } = $$props;
@@ -3134,8 +3197,8 @@ class WalletAppBadge extends SvelteComponent {
 		init$1(
 			this,
 			options,
-			instance$j,
-			create_fragment$j,
+			instance$k,
+			create_fragment$k,
 			safe_not_equal,
 			{
 				size: 0,
@@ -3148,18 +3211,18 @@ class WalletAppBadge extends SvelteComponent {
 				customBackgroundColor: 7,
 				radius: 8
 			},
-			add_css$j
+			add_css$k
 		);
 	}
 }
 
 /* src/views/shared/SuccessStatusIcon.svelte generated by Svelte v3.46.4 */
 
-function add_css$i(target) {
+function add_css$j(target) {
 	append_styles(target, "svelte-1bikw7k", ".icon.svelte-1bikw7k{color:var(--onboard-white, var(--white));border-radius:50px}.green.svelte-1bikw7k{background:var(--onboard-success-600, var(--success-600))}.blue.svelte-1bikw7k{background:var(--onboard-primary-1, var(--primary-1))}");
 }
 
-function create_fragment$i(ctx) {
+function create_fragment$j(ctx) {
 	let div;
 	let div_style_value;
 
@@ -3196,7 +3259,7 @@ function create_fragment$i(ctx) {
 	};
 }
 
-function instance$i($$self, $$props, $$invalidate) {
+function instance$j($$self, $$props, $$invalidate) {
 	let { size } = $$props;
 	let { color = 'green' } = $$props;
 
@@ -3211,17 +3274,17 @@ function instance$i($$self, $$props, $$invalidate) {
 class SuccessStatusIcon extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$i, create_fragment$i, safe_not_equal, { size: 0, color: 1 }, add_css$i);
+		init$1(this, options, instance$j, create_fragment$j, safe_not_equal, { size: 0, color: 1 }, add_css$j);
 	}
 }
 
 /* src/views/connect/ConnectedWallet.svelte generated by Svelte v3.46.4 */
 
-function add_css$h(target) {
+function add_css$i(target) {
 	append_styles(target, "svelte-1knto2d", ".container.svelte-1knto2d{padding:var(--onboard-spacing-4, var(--spacing-4))}.connecting-container.svelte-1knto2d{padding:var(--onboard-spacing-4, var(--spacing-4));border-radius:24px;background:var(--onboard-success-100, var(--success-100));border:1px solid var(--onboard-success-600, var(--success-600));width:100%}.text.svelte-1knto2d{right:var(--onboard-spacing-5, var(--spacing-5))}.tick.svelte-1knto2d{color:var(--onboard-success-700, var(--success-700))}@media all and (max-width: 520px){}");
 }
 
-function create_fragment$h(ctx) {
+function create_fragment$i(ctx) {
 	let div7;
 	let div6;
 	let div4;
@@ -3352,7 +3415,7 @@ function create_fragment$h(ctx) {
 	};
 }
 
-function instance$h($$self, $$props, $$invalidate) {
+function instance$i($$self, $$props, $$invalidate) {
 	let $_;
 	component_subscribe($$self, _, $$value => $$invalidate(1, $_ = $$value));
 	let { selectedWallet } = $$props;
@@ -3368,13 +3431,13 @@ function instance$h($$self, $$props, $$invalidate) {
 class ConnectedWallet extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$h, create_fragment$h, safe_not_equal, { selectedWallet: 0 }, add_css$h);
+		init$1(this, options, instance$i, create_fragment$i, safe_not_equal, { selectedWallet: 0 }, add_css$i);
 	}
 }
 
 /* src/views/connect/ConnectingWallet.svelte generated by Svelte v3.46.4 */
 
-function add_css$g(target) {
+function add_css$h(target) {
 	append_styles(target, "svelte-ag34wy", ".container.svelte-ag34wy{padding:var(--onboard-spacing-4, var(--spacing-4))}.connecting-container.svelte-ag34wy{width:100%;padding:var(--onboard-spacing-4, var(--spacing-4));transition:background-color 100ms ease-in-out,\n      border-color 100ms ease-in-out;border-radius:24px;background-color:var(--onboard-primary-100, var(--primary-100));border:1px solid;border-color:var(--onboard-primary-300, var(--primary-300));color:var(--onboard-gray-600, var(--gray-600))}.connecting-container.warning.svelte-ag34wy{background-color:var(--onboard-warning-100, var(--warning-100));border-color:var(--onboard-warning-400, var(--warning-400))}.text.svelte-ag34wy{line-height:16px;margin-bottom:var(--onboard-spacing-5, var(--spacing-5))}.text.text-rejected.svelte-ag34wy{line-height:24px;margin-bottom:0}.subtext.svelte-ag34wy{font-size:var(--onboard-font-size-7, var(--font-size-7));line-height:16px}.rejected-cta.svelte-ag34wy{color:var(--onboard-primary-500, var(--primary-500))}.onboard-button-primary.svelte-ag34wy{bottom:var(--onboard-spacing-3, var(--spacing-3))}.ml.svelte-ag34wy{margin-left:var(--onboard-spacing-4, var(--spacing-4))}");
 }
 
@@ -3454,7 +3517,7 @@ function create_if_block$c(ctx) {
 	};
 }
 
-function create_fragment$g(ctx) {
+function create_fragment$h(ctx) {
 	let div6;
 	let div5;
 	let div4;
@@ -3642,7 +3705,7 @@ function create_fragment$g(ctx) {
 	};
 }
 
-function instance$g($$self, $$props, $$invalidate) {
+function instance$h($$self, $$props, $$invalidate) {
 	let $_;
 	component_subscribe($$self, _, $$value => $$invalidate(5, $_ = $$value));
 	let { connectWallet } = $$props;
@@ -3684,8 +3747,8 @@ class ConnectingWallet extends SvelteComponent {
 		init$1(
 			this,
 			options,
-			instance$g,
-			create_fragment$g,
+			instance$h,
+			create_fragment$h,
 			safe_not_equal,
 			{
 				connectWallet: 0,
@@ -3694,7 +3757,7 @@ class ConnectingWallet extends SvelteComponent {
 				setStep: 3,
 				connectionRejected: 4
 			},
-			add_css$g
+			add_css$h
 		);
 	}
 }
@@ -3707,11 +3770,11 @@ var infoIcon = `
 
 /* src/views/shared/Warning.svelte generated by Svelte v3.46.4 */
 
-function add_css$f(target) {
+function add_css$g(target) {
 	append_styles(target, "svelte-bn5jmi", ".container.svelte-bn5jmi{padding:var(--onboard-spacing-5, var(--spacing-5));color:var(--onboard-warning-700, var(--warning-700));font-size:var(--onboard-font-size-7, var(--font-size-7));line-height:16px;border:1px solid var(--onboard-warning-400, var(--warning-400));background-color:var(--onboard-warning-100, var(--warning-100));margin:0;border-radius:12px}.icon.svelte-bn5jmi{color:var(--onboard-warning-700, var(--warning-700));width:1rem;height:1rem;margin-left:var(--onboard-spacing-5, var(--spacing-5))}p.svelte-bn5jmi{margin:0;width:fit-content}");
 }
 
-function create_fragment$f(ctx) {
+function create_fragment$g(ctx) {
 	let div1;
 	let p;
 	let t;
@@ -3785,7 +3848,7 @@ function create_fragment$f(ctx) {
 	};
 }
 
-function instance$f($$self, $$props, $$invalidate) {
+function instance$g($$self, $$props, $$invalidate) {
 	let { $$slots: slots = {}, $$scope } = $$props;
 
 	$$self.$$set = $$props => {
@@ -3798,13 +3861,13 @@ function instance$f($$self, $$props, $$invalidate) {
 class Warning extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$f, create_fragment$f, safe_not_equal, {}, add_css$f);
+		init$1(this, options, instance$g, create_fragment$g, safe_not_equal, {}, add_css$g);
 	}
 }
 
 /* src/views/connect/InstallWallet.svelte generated by Svelte v3.46.4 */
 
-function add_css$e(target) {
+function add_css$f(target) {
 	append_styles(target, "svelte-1uy2ffh", ".outer-container.svelte-1uy2ffh{padding:var(--onboard-spacing-4, var(--spacing-4))}.link.svelte-1uy2ffh{font-size:var(--onboard-font-size-7, var(--font-size-7));line-height:16px;color:var(--onboard-primary-500, var(--primary-500));text-decoration:none}");
 }
 
@@ -3999,7 +4062,7 @@ function create_default_slot$5(ctx) {
 	};
 }
 
-function create_fragment$e(ctx) {
+function create_fragment$f(ctx) {
 	let div;
 	let warning;
 	let current;
@@ -4047,7 +4110,7 @@ function create_fragment$e(ctx) {
 	};
 }
 
-function instance$e($$self, $$props, $$invalidate) {
+function instance$f($$self, $$props, $$invalidate) {
 	let $_;
 	component_subscribe($$self, _, $$value => $$invalidate(0, $_ = $$value));
 	const { recommendedInjectedWallets, name } = internalState$.getValue().appMetadata || {};
@@ -4057,13 +4120,13 @@ function instance$e($$self, $$props, $$invalidate) {
 class InstallWallet extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$e, create_fragment$e, safe_not_equal, {}, add_css$e);
+		init$1(this, options, instance$f, create_fragment$f, safe_not_equal, {}, add_css$f);
 	}
 }
 
 /* src/views/connect/WalletButton.svelte generated by Svelte v3.46.4 */
 
-function add_css$d(target) {
+function add_css$e(target) {
 	append_styles(target, "svelte-11mmkf", "button.svelte-11mmkf{background-color:var(\n      --onboard-wallet-button-background,\n      var(--onboard-white, var(--white))\n    );border:1px solid\n      var(\n        --onboard-wallet-button-border-color,\n        var(--onboard-primary-200, var(--primary-200))\n      );transition:background-color 250ms ease-in-out;color:var(\n      --onboard-wallet-button-color,\n      var(--onboard-gray-700, var(--gray-700))\n    )}button.svelte-11mmkf:hover{background-color:var(\n      --onboard-wallet-button-background-hover,\n      var(--onboard-primary-100, var(--primary-100))\n    )}button.connected.svelte-11mmkf{border:1px solid var(--onboard-success-200, var(--success-200))}button.connected.svelte-11mmkf:hover{background-color:var(--onboard-success-100, var(--success-100))}.name.svelte-11mmkf{margin-left:var(--onboard-spacing-4, var(--spacing-4))}button.wallet-button-styling.svelte-11mmkf{border-radius:var(--onboard-wallet-button-border-radius, var(--border-radius-1));box-shadow:var(--onboard-wallet-button-box-shadow, var(--box-shadow-0))}");
 }
 
@@ -4102,7 +4165,7 @@ function create_if_block$a(ctx) {
 	};
 }
 
-function create_fragment$d(ctx) {
+function create_fragment$e(ctx) {
 	let button;
 	let walletappbadge;
 	let t0;
@@ -4220,7 +4283,7 @@ function create_fragment$d(ctx) {
 	};
 }
 
-function instance$d($$self, $$props, $$invalidate) {
+function instance$e($$self, $$props, $$invalidate) {
 	let { icon } = $$props;
 	let { label } = $$props;
 	let { onClick } = $$props;
@@ -4245,8 +4308,8 @@ class WalletButton extends SvelteComponent {
 		init$1(
 			this,
 			options,
-			instance$d,
-			create_fragment$d,
+			instance$e,
+			create_fragment$e,
 			safe_not_equal,
 			{
 				icon: 0,
@@ -4255,14 +4318,14 @@ class WalletButton extends SvelteComponent {
 				connected: 3,
 				connecting: 4
 			},
-			add_css$d
+			add_css$e
 		);
 	}
 }
 
 /* src/views/connect/SelectingWallet.svelte generated by Svelte v3.46.4 */
 
-function add_css$c(target) {
+function add_css$d(target) {
 	append_styles(target, "svelte-11upx36", ".outer-container.svelte-11upx36{padding:var(--onboard-spacing-4, var(--spacing-4));padding-top:0}.wallets-container.svelte-11upx36{display:grid;grid-template-columns:repeat(var(--onboard-wallet-columns, 2), 1fr);gap:var(--onboard-spacing-5, var(--spacing-5));width:100%}.warning-container.svelte-11upx36{margin-bottom:1rem}@media all and (max-width: 520px){.wallets-container.svelte-11upx36{grid-template-columns:repeat(1, 1fr)}}");
 }
 
@@ -4398,7 +4461,7 @@ function create_each_block$3(ctx) {
 	};
 }
 
-function create_fragment$c(ctx) {
+function create_fragment$d(ctx) {
 	let div1;
 	let t;
 	let div0;
@@ -4520,7 +4583,7 @@ function create_fragment$c(ctx) {
 	};
 }
 
-function instance$c($$self, $$props, $$invalidate) {
+function instance$d($$self, $$props, $$invalidate) {
 	let { wallets } = $$props;
 	let { selectWallet } = $$props;
 	let { connectingWalletLabel } = $$props;
@@ -4557,8 +4620,8 @@ class SelectingWallet extends SvelteComponent {
 		init$1(
 			this,
 			options,
-			instance$c,
-			create_fragment$c,
+			instance$d,
+			create_fragment$d,
 			safe_not_equal,
 			{
 				wallets: 0,
@@ -4566,7 +4629,7 @@ class SelectingWallet extends SvelteComponent {
 				connectingWalletLabel: 2,
 				connectingErrorMessage: 3
 			},
-			add_css$c
+			add_css$d
 		);
 	}
 }
@@ -4597,7 +4660,7 @@ var blocknative = `
 
 /* src/views/connect/Sidebar.svelte generated by Svelte v3.46.4 */
 
-function add_css$b(target) {
+function add_css$c(target) {
 	append_styles(target, "svelte-kwt38y", ".sidebar.svelte-kwt38y{padding:var(--onboard-spacing-3, var(--spacing-3));background:var(\n      --onboard-connect-sidebar-background,\n      var(--onboard-gray-100, var(--gray-100))\n    );color:var(\n      --onboard-connect-sidebar-color,\n      var(--onboard-gray-700, var(--gray-700))\n    )}.inner-container.svelte-kwt38y{padding-left:var(--onboard-spacing-5, var(--spacing-5));max-width:236px}.icon-container.svelte-kwt38y{height:3rem;margin-bottom:var(--onboard-spacing-4, var(--spacing-4))}.heading.svelte-kwt38y{font-size:var(--onboard-font-size-3, var(--font-size-3));margin:0 0 var(--onboard-spacing-5, var(--spacing-5)) 0}.subheading.svelte-kwt38y{margin:0 0 var(--onboard-spacing-5, var(--spacing-5)) 0}.description.svelte-kwt38y{line-height:20px;font-size:var(--onboard-font-size-6, var(--font-size-6));margin:0}.indicators.svelte-kwt38y{margin-top:var(--onboard-spacing-2, var(--spacing-2))}.indicator.svelte-kwt38y{box-sizing:content-box;width:8px;height:8px;border-radius:8px;background:var(\n      --onboard-connect-sidebar-progress-background,\n      var(--onboard-gray-200, var(--gray-200))\n    );transition:background 250ms ease-in-out}.indicator.on.svelte-kwt38y{background:var(\n      --onboard-connect-sidebar-progress-color,\n      var(--onboard-primary-600, var(--primary-600))\n    );border:2px solid\n      var(\n        --onboard-connect-sidebar-progress-background,\n        var(--onboard-gray-200, var(--gray-200))\n      )}.join.svelte-kwt38y{box-sizing:content-box;z-index:1;right:4px;height:2px;background:var(\n      --onboard-connect-sidebar-progress-background,\n      var(--onboard-gray-200, var(--gray-200))\n    );transition:background 250ms ease-in-out}.join.active.svelte-kwt38y{background:var(\n      --onboard-connect-sidebar-progress-color,\n      var(--onboard-primary-600, var(--primary-600))\n    )}img.svelte-kwt38y{max-width:100%;height:auto}");
 }
 
@@ -4625,7 +4688,7 @@ function create_else_block_1(ctx) {
 }
 
 // (108:6) {#if logo || icon}
-function create_if_block_1$5(ctx) {
+function create_if_block_1$6(ctx) {
 	let if_block_anchor;
 
 	function select_block_type_1(ctx, dirty) {
@@ -4726,7 +4789,7 @@ function create_if_block$8(ctx) {
 	};
 }
 
-function create_fragment$b(ctx) {
+function create_fragment$c(ctx) {
 	let div8;
 	let div7;
 	let div0;
@@ -4760,7 +4823,7 @@ function create_fragment$b(ctx) {
 	let div5;
 
 	function select_block_type(ctx, dirty) {
-		if (/*logo*/ ctx[3] || /*icon*/ ctx[2]) return create_if_block_1$5;
+		if (/*logo*/ ctx[3] || /*icon*/ ctx[2]) return create_if_block_1$6;
 		return create_else_block_1;
 	}
 
@@ -4909,7 +4972,7 @@ function create_fragment$b(ctx) {
 	};
 }
 
-function instance$b($$self, $$props, $$invalidate) {
+function instance$c($$self, $$props, $$invalidate) {
 	let $_;
 	component_subscribe($$self, _, $$value => $$invalidate(1, $_ = $$value));
 	let { step } = $$props;
@@ -4929,13 +4992,13 @@ function instance$b($$self, $$props, $$invalidate) {
 class Sidebar extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$b, create_fragment$b, safe_not_equal, { step: 0 }, add_css$b);
+		init$1(this, options, instance$c, create_fragment$c, safe_not_equal, { step: 0 }, add_css$c);
 	}
 }
 
 /* src/views/connect/Index.svelte generated by Svelte v3.46.4 */
 
-function add_css$a(target) {
+function add_css$b(target) {
 	append_styles(target, "svelte-ro440k", ".container.svelte-ro440k{font-family:var(--onboard-font-family-normal, var(--font-family-normal));line-height:24px;color:var(--onboard-gray-700, var(--gray-700));font-size:var(--onboard-font-size-5, var(--font-size-5));height:var(--onboard-connect-content-height, 440px);overflow:hidden;background:var(\n      --onboard-main-scroll-container-background,\n      var(--onboard-white, var(--white))\n    )}.content.svelte-ro440k{width:var(--onboard-connect-content-width, 488px)}.scroll-container.svelte-ro440k{overflow-y:auto;transition:opacity 250ms ease-in-out;scrollbar-width:none}.scroll-container.svelte-ro440k::-webkit-scrollbar{display:none}.header.svelte-ro440k{box-shadow:var(--onboard-shadow-2, var(--shadow-2));background:var(\n      --onboard-connect-header-background,\n      var(--onboard-white, var(--white))\n    );color:var(\n      --onboard-connect-header-color,\n      var(--onboard-black, var(--black))\n    );border-radius:0 24px 0 0}.header-heading.svelte-ro440k{margin:var(--onboard-spacing-4, var(--spacing-4));line-height:16px}.button-container.svelte-ro440k{right:var(--onboard-spacing-5, var(--spacing-5));top:var(--onboard-spacing-5, var(--spacing-5))}.disabled.svelte-ro440k{opacity:0.2;pointer-events:none}@media all and (max-width: 520px){.content.svelte-ro440k{width:100%}.container.svelte-ro440k{height:auto;min-height:228px}}");
 }
 
@@ -5024,7 +5087,7 @@ function create_if_block_3$3(ctx) {
 	let if_block;
 	let if_block_anchor;
 	let current;
-	const if_block_creators = [create_if_block_4$1, create_if_block_5];
+	const if_block_creators = [create_if_block_4$1, create_if_block_5$1];
 	const if_blocks = [];
 
 	function select_block_type(ctx, dirty) {
@@ -5106,7 +5169,7 @@ function create_if_block_3$3(ctx) {
 }
 
 // (311:34) 
-function create_if_block_5(ctx) {
+function create_if_block_5$1(ctx) {
 	let installwallet;
 	let current;
 	installwallet = new InstallWallet({});
@@ -5267,7 +5330,7 @@ function create_if_block_2$4(ctx) {
 }
 
 // (326:10) {#if $modalStep$ === 'connectedWallet' && selectedWallet}
-function create_if_block_1$4(ctx) {
+function create_if_block_1$5(ctx) {
 	let connectedwallet;
 	let current;
 
@@ -5336,7 +5399,7 @@ function create_default_slot$3(ctx) {
 	closebutton = new CloseButton({});
 	let if_block1 = /*$modalStep$*/ ctx[9] === 'selectingWallet' && create_if_block_3$3(ctx);
 	let if_block2 = /*$modalStep$*/ ctx[9] === 'connectingWallet' && /*selectedWallet*/ ctx[3] && create_if_block_2$4(ctx);
-	let if_block3 = /*$modalStep$*/ ctx[9] === 'connectedWallet' && /*selectedWallet*/ ctx[3] && create_if_block_1$4(ctx);
+	let if_block3 = /*$modalStep$*/ ctx[9] === 'connectedWallet' && /*selectedWallet*/ ctx[3] && create_if_block_1$5(ctx);
 
 	return {
 		c() {
@@ -5476,7 +5539,7 @@ function create_default_slot$3(ctx) {
 						transition_in(if_block3, 1);
 					}
 				} else {
-					if_block3 = create_if_block_1$4(ctx);
+					if_block3 = create_if_block_1$5(ctx);
 					if_block3.c();
 					transition_in(if_block3, 1);
 					if_block3.m(div2, null);
@@ -5522,7 +5585,7 @@ function create_default_slot$3(ctx) {
 	};
 }
 
-function create_fragment$a(ctx) {
+function create_fragment$b(ctx) {
 	let if_block_anchor;
 	let current;
 	let mounted;
@@ -5587,7 +5650,7 @@ function create_fragment$a(ctx) {
 	};
 }
 
-function instance$a($$self, $$props, $$invalidate) {
+function instance$b($$self, $$props, $$invalidate) {
 	let $modalStep$;
 	let $_;
 	component_subscribe($$self, _, $$value => $$invalidate(10, $_ = $$value));
@@ -5843,13 +5906,13 @@ function instance$a($$self, $$props, $$invalidate) {
 class Index$2 extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$a, create_fragment$a, safe_not_equal, { autoSelect: 0 }, add_css$a);
+		init$1(this, options, instance$b, create_fragment$b, safe_not_equal, { autoSelect: 0 }, add_css$b);
 	}
 }
 
 /* src/views/chain/SwitchChain.svelte generated by Svelte v3.46.4 */
 
-function add_css$9(target) {
+function add_css$a(target) {
 	append_styles(target, "svelte-12yam41", ".container.svelte-12yam41{padding:var(--onboard-spacing-4, var(--spacing-4));font-family:var(--onboard-font-family-normal, var(--font-family-normal));line-height:16px;font-size:var(--onboard-font-size-5, var(--font-size-5))}.close.svelte-12yam41{top:var(--onboard-spacing-5, var(--spacing-5));right:var(--onboard-spacing-5, var(--spacing-5));padding:0.5rem}h4.svelte-12yam41{font-size:var(--onboard-font-size-3, var(--font-size-3));margin:var(--onboard-spacing-4, var(--spacing-4)) 0}p.svelte-12yam41{margin:0 0 var(--onboard-spacing-4, var(--spacing-4)) 0;max-width:488px}");
 }
 
@@ -5960,7 +6023,7 @@ function create_default_slot$2(ctx) {
 	};
 }
 
-function create_fragment$9(ctx) {
+function create_fragment$a(ctx) {
 	let modal;
 	let current;
 
@@ -6004,7 +6067,7 @@ function create_fragment$9(ctx) {
 	};
 }
 
-function instance$9($$self, $$props, $$invalidate) {
+function instance$a($$self, $$props, $$invalidate) {
 	let $switchChainModal$;
 	let $_;
 	component_subscribe($$self, switchChainModal$, $$value => $$invalidate(4, $switchChainModal$ = $$value));
@@ -6022,17 +6085,17 @@ function instance$9($$self, $$props, $$invalidate) {
 class SwitchChain extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$9, create_fragment$9, safe_not_equal, {}, add_css$9);
+		init$1(this, options, instance$a, create_fragment$a, safe_not_equal, {}, add_css$a);
 	}
 }
 
 /* src/views/shared/InfoIcon.svelte generated by Svelte v3.46.4 */
 
-function add_css$8(target) {
+function add_css$9(target) {
 	append_styles(target, "svelte-z54y2j", ".icon.svelte-z54y2j{border-radius:50px;color:var(--onboard-primary-500, var(--primary-500))}");
 }
 
-function create_fragment$8(ctx) {
+function create_fragment$9(ctx) {
 	let div;
 	let div_style_value;
 
@@ -6059,7 +6122,7 @@ function create_fragment$8(ctx) {
 	};
 }
 
-function instance$8($$self, $$props, $$invalidate) {
+function instance$9($$self, $$props, $$invalidate) {
 	let { size = 20 } = $$props;
 
 	$$self.$$set = $$props => {
@@ -6072,17 +6135,17 @@ function instance$8($$self, $$props, $$invalidate) {
 class InfoIcon extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$8, create_fragment$8, safe_not_equal, { size: 0 }, add_css$8);
+		init$1(this, options, instance$9, create_fragment$9, safe_not_equal, { size: 0 }, add_css$9);
 	}
 }
 
 /* src/views/connect/ActionRequired.svelte generated by Svelte v3.46.4 */
 
-function add_css$7(target) {
-	append_styles(target, "svelte-qh86p0", ".content.svelte-qh86p0{padding:1rem;width:300px;font-family:var(--onboard-font-family-normal, var(--font-family-normal));font-size:var(--onboard-font-size-5, var(--font-size-5));line-height:24px}.icon-container.svelte-qh86p0{width:3rem;height:3rem;background-color:var(--onboard-primary-100, var(--primary-100));border-radius:24px}h4.svelte-qh86p0{margin:1.5rem 0 0.5rem 0;font-weight:700}p.svelte-qh86p0{margin:0;font-weight:400}a.svelte-qh86p0{font-weight:700}button.svelte-qh86p0{margin-top:1.5rem;font-weight:700}");
+function add_css$8(target) {
+	append_styles(target, "svelte-udesvy", ".content.svelte-udesvy{padding:1rem;width:300px;font-family:var(--onboard-font-family-normal, var(--font-family-normal));font-size:var(--onboard-font-size-5, var(--font-size-5));line-height:24px;background:var(\n      --onboard-action-required-modal-background,\n      var(--onboard-white, var(--white))\n    )}.icon-container.svelte-udesvy{width:3rem;height:3rem;background-color:var(--onboard-primary-100, var(--primary-100));border-radius:24px}h4.svelte-udesvy{margin:1.5rem 0 0.5rem 0;font-weight:700}p.svelte-udesvy{margin:0;font-weight:400}a.svelte-udesvy{font-weight:700}button.svelte-udesvy{margin-top:1.5rem;font-weight:700}");
 }
 
-// (58:6) {#if wallet === 'MetaMask'}
+// (62:6) {#if wallet === 'MetaMask'}
 function create_if_block$6(ctx) {
 	let a;
 	let t_value = /*$_*/ ctx[1]('modals.actionRequired.linkText') + "";
@@ -6095,7 +6158,7 @@ function create_if_block$6(ctx) {
 			attr(a, "href", "https://metamask.zendesk.com/hc/en-us/articles/360061346311-Switching-accounts-in-MetaMask");
 			attr(a, "target", "_blank");
 			attr(a, "rel", "noreferrer noopener");
-			attr(a, "class", "svelte-qh86p0");
+			attr(a, "class", "svelte-udesvy");
 		},
 		m(target, anchor) {
 			insert(target, a, anchor);
@@ -6110,7 +6173,7 @@ function create_if_block$6(ctx) {
 	};
 }
 
-// (47:0) <Modal {close}>
+// (51:0) <Modal {close}>
 function create_default_slot$1(ctx) {
 	let div1;
 	let div0;
@@ -6150,11 +6213,11 @@ function create_default_slot$1(ctx) {
 			t5 = space();
 			button = element("button");
 			t6 = text(t6_value);
-			attr(div0, "class", "icon-container flex justify-center items-center svelte-qh86p0");
-			attr(h4, "class", "svelte-qh86p0");
-			attr(p, "class", "svelte-qh86p0");
-			attr(button, "class", "button-neutral-solid rounded svelte-qh86p0");
-			attr(div1, "class", "content svelte-qh86p0");
+			attr(div0, "class", "icon-container flex justify-center items-center svelte-udesvy");
+			attr(h4, "class", "svelte-udesvy");
+			attr(p, "class", "svelte-udesvy");
+			attr(button, "class", "button-neutral-solid rounded svelte-udesvy");
+			attr(div1, "class", "content svelte-udesvy");
 		},
 		m(target, anchor) {
 			insert(target, div1, anchor);
@@ -6216,7 +6279,7 @@ function create_default_slot$1(ctx) {
 	};
 }
 
-function create_fragment$7(ctx) {
+function create_fragment$8(ctx) {
 	let modal;
 	let current;
 
@@ -6260,7 +6323,7 @@ function create_fragment$7(ctx) {
 	};
 }
 
-function instance$7($$self, $$props, $$invalidate) {
+function instance$8($$self, $$props, $$invalidate) {
 	let $_;
 	component_subscribe($$self, _, $$value => $$invalidate(1, $_ = $$value));
 	let { wallet } = $$props;
@@ -6279,7 +6342,7 @@ function instance$7($$self, $$props, $$invalidate) {
 class ActionRequired extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$7, create_fragment$7, safe_not_equal, { wallet: 0 }, add_css$7);
+		init$1(this, options, instance$8, create_fragment$8, safe_not_equal, { wallet: 0 }, add_css$8);
 	}
 }
 
@@ -6291,7 +6354,7 @@ var elipsisIcon = `
 
 /* src/views/account-center/WalletRow.svelte generated by Svelte v3.46.4 */
 
-function add_css$6(target) {
+function add_css$7(target) {
 	append_styles(target, "svelte-1h00vmk", ".container.svelte-1h00vmk.svelte-1h00vmk.svelte-1h00vmk{padding:0.25rem;margin-bottom:0.25rem;width:100%;font-size:var(--onboard-font-size-5, var(--font-size-5));line-height:var(--onboard-font-line-height-2, var(--font-line-height-2));border-radius:12px;transition:background-color 150ms ease-in-out}.container.svelte-1h00vmk.svelte-1h00vmk.svelte-1h00vmk:hover{background-color:var(--onboard-gray-500, var(--gray-500))}.container.svelte-1h00vmk:hover>div.svelte-1h00vmk>span.balance.svelte-1h00vmk{color:var(--onboard-gray-100, var(--gray-100))}.container.primary.svelte-1h00vmk.svelte-1h00vmk.svelte-1h00vmk:hover{background-color:var(--onboard-gray-700, var(--gray-700))}.address-ens.svelte-1h00vmk.svelte-1h00vmk.svelte-1h00vmk{margin-left:0.5rem;font-weight:700;color:var(--onboard-primary-100, var(--primary-100))}.balance.svelte-1h00vmk.svelte-1h00vmk.svelte-1h00vmk{margin-left:0.5rem;color:var(--onboard-gray-300, var(--gray-300));transition:color 150ms ease-in-out, background-color 150ms ease-in-out}.elipsis-container.svelte-1h00vmk.svelte-1h00vmk.svelte-1h00vmk{padding:0.25rem;margin-left:0.5rem;border-radius:24px;transition:color 150ms ease-in-out, background-color 150ms ease-in-out;background-color:transparent;color:var(--onboard-gray-400, var(--gray-400))}.elipsis.svelte-1h00vmk.svelte-1h00vmk.svelte-1h00vmk{width:24px}.elipsis-container.svelte-1h00vmk.svelte-1h00vmk.svelte-1h00vmk:hover{color:var(--onboard-gray-100, var(--gray-100))}.elipsis-container.active.svelte-1h00vmk.svelte-1h00vmk.svelte-1h00vmk{background-color:var(--onboard-gray-700, var(--gray-700))}.menu.svelte-1h00vmk.svelte-1h00vmk.svelte-1h00vmk{background:var(--onboard-white, var(--white));border:1px solid var(--onboard-gray-100, var(--gray-100));border-radius:8px;list-style-type:none;right:0.25rem;top:2.25rem;margin:0;padding:0;border:none;overflow:hidden;z-index:1}.menu.svelte-1h00vmk li.svelte-1h00vmk.svelte-1h00vmk{color:var(--onboard-primary-500, var(--primary-500));font-size:var(--onboard-font-size-5, var(--font-size-5));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3));padding:12px 16px;background-color:var(--onboard-white, var(--white));transition:background-color 150ms ease-in-out;cursor:pointer}.menu.svelte-1h00vmk li.svelte-1h00vmk.svelte-1h00vmk:hover{background-color:var(--onboard-primary-200, var(--primary-200))}");
 }
 
@@ -6393,7 +6456,7 @@ function create_if_block$5(ctx) {
 	let ul_intro;
 	let mounted;
 	let dispose;
-	let if_block = !(/*primary*/ ctx[1] && /*i*/ ctx[16] === 0) && create_if_block_1$3(ctx);
+	let if_block = !(/*primary*/ ctx[1] && /*i*/ ctx[16] === 0) && create_if_block_1$4(ctx);
 
 	return {
 		c() {
@@ -6435,7 +6498,7 @@ function create_if_block$5(ctx) {
 				if (if_block) {
 					if_block.p(ctx, dirty);
 				} else {
-					if_block = create_if_block_1$3(ctx);
+					if_block = create_if_block_1$4(ctx);
 					if_block.c();
 					if_block.m(ul, t2);
 				}
@@ -6467,7 +6530,7 @@ function create_if_block$5(ctx) {
 }
 
 // (200:8) {#if !(primary && i === 0)}
-function create_if_block_1$3(ctx) {
+function create_if_block_1$4(ctx) {
 	let li;
 
 	let t_value = /*$_*/ ctx[3]('accountCenter.setPrimaryAccount', {
@@ -6742,7 +6805,7 @@ function create_each_block$2(ctx) {
 	};
 }
 
-function create_fragment$6(ctx) {
+function create_fragment$7(ctx) {
 	let each_1_anchor;
 	let current;
 	let each_value = /*wallet*/ ctx[0].accounts;
@@ -6833,7 +6896,7 @@ function formatBalance(balance) {
 	: balance[asset]} ${asset}`;
 }
 
-function instance$6($$self, $$props, $$invalidate) {
+function instance$7($$self, $$props, $$invalidate) {
 	let $_;
 	component_subscribe($$self, _, $$value => $$invalidate(3, $_ = $$value));
 	let { wallet } = $$props;
@@ -6911,7 +6974,7 @@ function instance$6($$self, $$props, $$invalidate) {
 class WalletRow extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$6, create_fragment$6, safe_not_equal, { wallet: 0, primary: 1, hideMenu: 6 }, add_css$6);
+		init$1(this, options, instance$7, create_fragment$7, safe_not_equal, { wallet: 0, primary: 1, hideMenu: 6 }, add_css$7);
 	}
 
 	get hideMenu() {
@@ -6935,7 +6998,7 @@ var caretIcon = `<svg width="100%" height="24" viewBox="0 5 24 24" fill="none" x
 
 /* src/views/shared/NetworkSelector.svelte generated by Svelte v3.46.4 */
 
-function add_css$5(target) {
+function add_css$6(target) {
 	append_styles(target, "svelte-1ebzu2l", "select.svelte-1ebzu2l{border:none;background-image:none;background-color:transparent;-webkit-appearance:none;-webkit-box-shadow:none;-moz-box-shadow:none;box-shadow:none;appearance:none;font-size:var(--onboard-font-size-7, var(--font-size-7));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3));max-width:90px;min-width:72px;transition:width 250ms ease-in-out;background-repeat:no-repeat, repeat;background-position:right 0px top 0px, 0 0;scrollbar-width:none;-ms-overflow-style:none;padding:0 16px 0 0}select.svelte-1ebzu2l:focus{outline:none}span.svelte-1ebzu2l{font-size:var(--onboard-font-size-7, var(--font-size-7));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3))}");
 }
 
@@ -6950,7 +7013,7 @@ function create_if_block$4(ctx) {
 	let if_block_anchor;
 
 	function select_block_type(ctx, dirty) {
-		if (/*$switching$*/ ctx[6]) return create_if_block_1$2;
+		if (/*$switching$*/ ctx[6]) return create_if_block_1$3;
 		return create_else_block$1;
 	}
 
@@ -7082,7 +7145,7 @@ function create_else_block$1(ctx) {
 }
 
 // (80:2) {#if $switching$}
-function create_if_block_1$2(ctx) {
+function create_if_block_1$3(ctx) {
 	let span;
 	let t;
 	let span_style_value;
@@ -7177,7 +7240,7 @@ function create_each_block$1(key_1, ctx) {
 	};
 }
 
-function create_fragment$5(ctx) {
+function create_fragment$6(ctx) {
 	let if_block_anchor;
 	let if_block = /*wallet*/ ctx[5] && create_if_block$4(ctx);
 
@@ -7213,7 +7276,7 @@ function create_fragment$5(ctx) {
 	};
 }
 
-function instance$5($$self, $$props, $$invalidate) {
+function instance$6($$self, $$props, $$invalidate) {
 	let wallet;
 	let $resize$;
 	let $wallets$;
@@ -7314,8 +7377,8 @@ class NetworkSelector extends SvelteComponent {
 		init$1(
 			this,
 			options,
-			instance$5,
-			create_fragment$5,
+			instance$6,
+			create_fragment$6,
 			safe_not_equal,
 			{
 				selectIcon: 0,
@@ -7323,7 +7386,7 @@ class NetworkSelector extends SvelteComponent {
 				chains: 2,
 				bold: 3
 			},
-			add_css$5
+			add_css$6
 		);
 	}
 }
@@ -7338,7 +7401,7 @@ var warningIcon = `
 
 /* src/views/account-center/DisconnectAllConfirm.svelte generated by Svelte v3.46.4 */
 
-function add_css$4(target) {
+function add_css$5(target) {
 	append_styles(target, "svelte-1ndzgtz", ".content.svelte-1ndzgtz{padding:1rem;width:300px;font-family:var(--onboard-font-family-normal, var(--font-family-normal));font-size:var(--onboard-font-size-5, var(--font-size-5));line-height:24px}.icon-container.svelte-1ndzgtz{width:3rem;height:3rem;background-color:var(--onboard-warning-100, var(--warning-100));border-radius:24px;padding:12px;color:var(--onboard-warning-500, var(--warning-500))}h4.svelte-1ndzgtz{margin:1.5rem 0 0.5rem 0;font-weight:700}p.svelte-1ndzgtz{margin:0;font-weight:400}button.svelte-1ndzgtz{margin-top:1.5rem;width:50%;font-weight:700}.right.svelte-1ndzgtz{margin-left:0.5rem;width:60%}");
 }
 
@@ -7459,7 +7522,7 @@ function create_default_slot(ctx) {
 	};
 }
 
-function create_fragment$4(ctx) {
+function create_fragment$5(ctx) {
 	let modal;
 	let current;
 
@@ -7504,7 +7567,7 @@ function create_fragment$4(ctx) {
 	};
 }
 
-function instance$4($$self, $$props, $$invalidate) {
+function instance$5($$self, $$props, $$invalidate) {
 	let $_;
 	component_subscribe($$self, _, $$value => $$invalidate(2, $_ = $$value));
 	let { onConfirm } = $$props;
@@ -7521,31 +7584,31 @@ function instance$4($$self, $$props, $$invalidate) {
 class DisconnectAllConfirm extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$4, create_fragment$4, safe_not_equal, { onConfirm: 0, onClose: 1 }, add_css$4);
+		init$1(this, options, instance$5, create_fragment$5, safe_not_equal, { onConfirm: 0, onClose: 1 }, add_css$5);
 	}
 }
 
 /* src/views/account-center/Maximized.svelte generated by Svelte v3.46.4 */
 
-function add_css$3(target) {
-	append_styles(target, "svelte-uervkd", ".outer-container.svelte-uervkd{background-color:var(--onboard-gray-600, var(--gray-600));border-radius:16px;width:100%;filter:drop-shadow(0px 4px 16px rgba(178, 178, 178, 0.2))}.wallets-section.svelte-uervkd{width:100%;border-radius:16px}.p5.svelte-uervkd{padding:var(--onboard-spacing-5, var(--spacing-5))}.wallets.svelte-uervkd{width:100%;margin-bottom:0.5rem}.actions.svelte-uervkd{color:var(--onboard-primary-400, var(--primary-400));padding-left:2px}.action-container.svelte-uervkd{padding:4px 12px 4px 8px;border-radius:8px;transition:background-color 150ms ease-in-out}.action-container.svelte-uervkd:hover{background-color:rgba(146, 155, 237, 0.2)}.plus-icon.svelte-uervkd{width:20px}.arrow-forward.svelte-uervkd{width:20px}.mt.svelte-uervkd{margin-top:0.25rem}.action-text.svelte-uervkd{font-size:var(--onboard-font-size-6, var(--font-size-6));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3));margin-left:0.5rem}.background-blue.svelte-uervkd{background-color:var(--onboard-primary-100, var(--primary-100))}.background-gray.svelte-uervkd{background-color:var(--onboard-gray-100, var(--gray-100))}.background-yellow.svelte-uervkd{background-color:var(--onboard-warning-100, var(--warning-100))}.network-container.svelte-uervkd{margin:0 1px 1px 1px;border-radius:15px;color:var(--onboard-gray-500, var(--gray-500))}.p5-5.svelte-uervkd{padding:12px}.network-selector-container.svelte-uervkd{margin-left:1rem}.network-selector-label.svelte-uervkd{font-size:var(--onboard-font-size-7, var(--font-size-7));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3))}.app-info-container.svelte-uervkd{background:var(--onboard-white, var(--white));border-radius:16px;padding:12px}.app-name.svelte-uervkd{font-weight:700;font-size:var(--onboard-font-size-5, var(--font-size-5));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3));color:var(--onboard-gray-600, var(--gray-600));margin-bottom:var(--onboard-spacing-5, var(--spacing-5));margin-top:0}.app-description.svelte-uervkd{font-size:var(--onboard-font-size-7, var(--font-size-7));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3));color:var(--onboard-gray-500, var(--gray-500));margin:0}.app-info.svelte-uervkd{font-size:var(--onboard-font-size-7, var(--font-size-7));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3));color:var(--onboard-gray-500, var(--gray-500))}.app-info-heading.svelte-uervkd{color:var(--onboard-gray-600, var(--gray-600));font-weight:700;margin-top:var(--onboard-spacing-5, var(--spacing-5));margin-bottom:var(--onboard-spacing-7, var(--spacing-7))}a.svelte-uervkd{font-weight:700}.mt7.svelte-uervkd{margin-top:var(--onboard-spacing-7, var(--spacing-7))}.ml4.svelte-uervkd{margin-left:var(--onboard-spacing-4, var(--spacing-4))}.app-button.svelte-uervkd{margin-top:var(--onboard-spacing-5, var(--spacing-5))}");
+function add_css$4(target) {
+	append_styles(target, "svelte-2hyvvn", ".outer-container.svelte-2hyvvn{background-color:var(--onboard-gray-600, var(--gray-600));border-radius:var(--onboard-border-radius-3, var(--border-radius-3));width:100%;filter:drop-shadow(0px 4px 16px rgba(178, 178, 178, 0.2))}.wallets-section.svelte-2hyvvn{width:100%;border-radius:16px}.p5.svelte-2hyvvn{padding:var(--onboard-spacing-5, var(--spacing-5))}.wallets.svelte-2hyvvn{width:100%;margin-bottom:0.5rem}.actions.svelte-2hyvvn{color:var(--onboard-primary-400, var(--primary-400));padding-left:2px}.action-container.svelte-2hyvvn{padding:4px 12px 4px 8px;border-radius:8px;transition:background-color 150ms ease-in-out}.action-container.svelte-2hyvvn:hover{background-color:rgba(146, 155, 237, 0.2)}.plus-icon.svelte-2hyvvn{width:20px}.arrow-forward.svelte-2hyvvn{width:20px}.mt.svelte-2hyvvn{margin-top:0.25rem}.action-text.svelte-2hyvvn{font-size:var(--onboard-font-size-6, var(--font-size-6));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3));margin-left:0.5rem}.background-blue.svelte-2hyvvn{background-color:var(--onboard-primary-100, var(--primary-100))}.background-gray.svelte-2hyvvn{background-color:var(--onboard-gray-100, var(--gray-100))}.background-yellow.svelte-2hyvvn{background-color:var(--onboard-warning-100, var(--warning-100))}.network-container.svelte-2hyvvn{margin:0 1px 1px 1px;border-radius:15px;color:var(--onboard-gray-500, var(--gray-500))}.p5-5.svelte-2hyvvn{padding:12px}.network-selector-container.svelte-2hyvvn{margin-left:1rem}.network-selector-label.svelte-2hyvvn{font-size:var(--onboard-font-size-7, var(--font-size-7));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3))}.app-info-container.svelte-2hyvvn{background:var(--onboard-white, var(--white));border-radius:16px;padding:12px}.app-name.svelte-2hyvvn{font-weight:700;font-size:var(--onboard-font-size-5, var(--font-size-5));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3));color:var(--onboard-gray-600, var(--gray-600));margin-bottom:var(--onboard-spacing-5, var(--spacing-5));margin-top:0}.app-description.svelte-2hyvvn{font-size:var(--onboard-font-size-7, var(--font-size-7));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3));color:var(--onboard-gray-500, var(--gray-500));margin:0}.app-info.svelte-2hyvvn{font-size:var(--onboard-font-size-7, var(--font-size-7));line-height:var(--onboard-font-line-height-3, var(--font-line-height-3));color:var(--onboard-gray-500, var(--gray-500))}.app-info-heading.svelte-2hyvvn{color:var(--onboard-gray-600, var(--gray-600));font-weight:700;margin-top:var(--onboard-spacing-5, var(--spacing-5));margin-bottom:var(--onboard-spacing-7, var(--spacing-7))}a.svelte-2hyvvn{font-weight:700}.mt7.svelte-2hyvvn{margin-top:var(--onboard-spacing-7, var(--spacing-7))}.ml4.svelte-2hyvvn{margin-left:var(--onboard-spacing-4, var(--spacing-4))}.app-button.svelte-2hyvvn{margin-top:var(--onboard-spacing-5, var(--spacing-5))}");
 }
 
 function get_each_context(ctx, list, i) {
 	const child_ctx = ctx.slice();
-	child_ctx[18] = list[i];
-	child_ctx[20] = i;
+	child_ctx[19] = list[i];
+	child_ctx[21] = i;
 	return child_ctx;
 }
 
-// (179:0) {#if disconnectConfirmModal}
-function create_if_block_4(ctx) {
+// (177:0) {#if disconnectConfirmModal}
+function create_if_block_5(ctx) {
 	let disconnectallconfirm;
 	let current;
 
 	disconnectallconfirm = new DisconnectAllConfirm({
 			props: {
-				onClose: /*func*/ ctx[13],
+				onClose: /*func*/ ctx[14],
 				onConfirm: /*disconnectAllWallets*/ ctx[6]
 			}
 		});
@@ -7560,7 +7623,7 @@ function create_if_block_4(ctx) {
 		},
 		p(ctx, dirty) {
 			const disconnectallconfirm_changes = {};
-			if (dirty & /*disconnectConfirmModal*/ 2) disconnectallconfirm_changes.onClose = /*func*/ ctx[13];
+			if (dirty & /*disconnectConfirmModal*/ 2) disconnectallconfirm_changes.onClose = /*func*/ ctx[14];
 			disconnectallconfirm.$set(disconnectallconfirm_changes);
 		},
 		i(local) {
@@ -7578,7 +7641,7 @@ function create_if_block_4(ctx) {
 	};
 }
 
-// (202:8) {#each $wallets$ as wallet, i (wallet.label)}
+// (200:8) {#each $wallets$ as wallet, i (wallet.label)}
 function create_each_block(key_1, ctx) {
 	let first;
 	let walletrow;
@@ -7586,12 +7649,12 @@ function create_each_block(key_1, ctx) {
 	let current;
 
 	function walletrow_hideMenu_binding(value) {
-		/*walletrow_hideMenu_binding*/ ctx[14](value);
+		/*walletrow_hideMenu_binding*/ ctx[15](value);
 	}
 
 	let walletrow_props = {
-		wallet: /*wallet*/ ctx[18],
-		primary: /*i*/ ctx[20] === 0
+		wallet: /*wallet*/ ctx[19],
+		primary: /*i*/ ctx[21] === 0
 	};
 
 	if (/*hideWalletRowMenu*/ ctx[2] !== void 0) {
@@ -7617,8 +7680,8 @@ function create_each_block(key_1, ctx) {
 		p(new_ctx, dirty) {
 			ctx = new_ctx;
 			const walletrow_changes = {};
-			if (dirty & /*$wallets$*/ 1) walletrow_changes.wallet = /*wallet*/ ctx[18];
-			if (dirty & /*$wallets$*/ 1) walletrow_changes.primary = /*i*/ ctx[20] === 0;
+			if (dirty & /*$wallets$*/ 1) walletrow_changes.wallet = /*wallet*/ ctx[19];
+			if (dirty & /*$wallets$*/ 1) walletrow_changes.primary = /*i*/ ctx[21] === 0;
 
 			if (!updating_hideMenu && dirty & /*hideWalletRowMenu*/ 4) {
 				updating_hideMenu = true;
@@ -7640,6 +7703,95 @@ function create_each_block(key_1, ctx) {
 		d(detaching) {
 			if (detaching) detach(first);
 			destroy_component(walletrow, detaching);
+		}
+	};
+}
+
+// (211:8) {#if device.type === 'desktop'}
+function create_if_block_4(ctx) {
+	let div1;
+	let div0;
+	let t0;
+	let span0;
+
+	let t1_value = /*$_*/ ctx[5]('accountCenter.connectAnotherWallet', {
+		default: en.accountCenter.connectAnotherWallet
+	}) + "";
+
+	let t1;
+	let t2;
+	let div3;
+	let div2;
+	let t3;
+	let span1;
+
+	let t4_value = /*$_*/ ctx[5]('accountCenter.disconnectAllWallets', {
+		default: en.accountCenter.disconnectAllWallets
+	}) + "";
+
+	let t4;
+	let mounted;
+	let dispose;
+
+	return {
+		c() {
+			div1 = element("div");
+			div0 = element("div");
+			t0 = space();
+			span0 = element("span");
+			t1 = text(t1_value);
+			t2 = space();
+			div3 = element("div");
+			div2 = element("div");
+			t3 = space();
+			span1 = element("span");
+			t4 = text(t4_value);
+			attr(div0, "class", "plus-icon flex items-center justify-center svelte-2hyvvn");
+			attr(span0, "class", "action-text svelte-2hyvvn");
+			attr(div1, "class", "action-container flex items-center pointer svelte-2hyvvn");
+			attr(div2, "class", "arrow-forward flex items-center justify-center svelte-2hyvvn");
+			attr(span1, "class", "action-text svelte-2hyvvn");
+			attr(div3, "class", "action-container flex items-center mt pointer svelte-2hyvvn");
+		},
+		m(target, anchor) {
+			insert(target, div1, anchor);
+			append(div1, div0);
+			div0.innerHTML = plusCircleIcon;
+			append(div1, t0);
+			append(div1, span0);
+			append(span0, t1);
+			insert(target, t2, anchor);
+			insert(target, div3, anchor);
+			append(div3, div2);
+			div2.innerHTML = arrowForwardIcon;
+			append(div3, t3);
+			append(div3, span1);
+			append(span1, t4);
+
+			if (!mounted) {
+				dispose = [
+					listen(div1, "click", /*click_handler_1*/ ctx[16]),
+					listen(div3, "click", /*click_handler_2*/ ctx[17])
+				];
+
+				mounted = true;
+			}
+		},
+		p(ctx, dirty) {
+			if (dirty & /*$_*/ 32 && t1_value !== (t1_value = /*$_*/ ctx[5]('accountCenter.connectAnotherWallet', {
+				default: en.accountCenter.connectAnotherWallet
+			}) + "")) set_data(t1, t1_value);
+
+			if (dirty & /*$_*/ 32 && t4_value !== (t4_value = /*$_*/ ctx[5]('accountCenter.disconnectAllWallets', {
+				default: en.accountCenter.disconnectAllWallets
+			}) + "")) set_data(t4, t4_value);
+		},
+		d(detaching) {
+			if (detaching) detach(div1);
+			if (detaching) detach(t2);
+			if (detaching) detach(div3);
+			mounted = false;
+			run_all(dispose);
 		}
 	};
 }
@@ -7689,7 +7841,7 @@ function create_if_block$3(ctx) {
 	let t1;
 	let t2;
 	let if_block0 = /*appMetadata*/ ctx[8].gettingStartedGuide && create_if_block_2$1(ctx);
-	let if_block1 = /*appMetadata*/ ctx[8].explore && create_if_block_1$1(ctx);
+	let if_block1 = /*appMetadata*/ ctx[8].explore && create_if_block_1$2(ctx);
 
 	return {
 		c() {
@@ -7700,8 +7852,8 @@ function create_if_block$3(ctx) {
 			if (if_block0) if_block0.c();
 			t2 = space();
 			if (if_block1) if_block1.c();
-			attr(h4, "class", "app-info-heading svelte-uervkd");
-			attr(div, "class", "app-info svelte-uervkd");
+			attr(h4, "class", "app-info-heading svelte-2hyvvn");
+			attr(div, "class", "app-info svelte-2hyvvn");
 		},
 		m(target, anchor) {
 			insert(target, div, anchor);
@@ -7752,8 +7904,8 @@ function create_if_block_2$1(ctx) {
 			attr(a, "href", a_href_value = /*appMetadata*/ ctx[8].gettingStartedGuide);
 			attr(a, "target", "_blank");
 			attr(a, "rel", "noreferrer noopener");
-			attr(a, "class", "svelte-uervkd");
-			attr(div1, "class", "flex justify-between items-center mt7 svelte-uervkd");
+			attr(a, "class", "svelte-2hyvvn");
+			attr(div1, "class", "flex justify-between items-center mt7 svelte-2hyvvn");
 		},
 		m(target, anchor) {
 			insert(target, div1, anchor);
@@ -7777,7 +7929,7 @@ function create_if_block_2$1(ctx) {
 }
 
 // (368:12) {#if appMetadata.explore}
-function create_if_block_1$1(ctx) {
+function create_if_block_1$2(ctx) {
 	let div1;
 	let div0;
 	let t0_value = /*$_*/ ctx[5]('accountCenter.smartContracts', { default: en.accountCenter.smartContracts }) + "";
@@ -7799,8 +7951,8 @@ function create_if_block_1$1(ctx) {
 			attr(a, "href", a_href_value = /*appMetadata*/ ctx[8].explore);
 			attr(a, "target", "_blank");
 			attr(a, "rel", "noreferrer noopener");
-			attr(a, "class", "svelte-uervkd");
-			attr(div1, "class", "flex justify-between items-center mt7 svelte-uervkd");
+			attr(a, "class", "svelte-2hyvvn");
+			attr(div1, "class", "flex justify-between items-center mt7 svelte-2hyvvn");
 		},
 		m(target, anchor) {
 			insert(target, div1, anchor);
@@ -7820,82 +7972,63 @@ function create_if_block_1$1(ctx) {
 	};
 }
 
-function create_fragment$3(ctx) {
+function create_fragment$4(ctx) {
 	let t0;
-	let div19;
-	let div18;
-	let div6;
+	let div15;
+	let div14;
+	let div2;
 	let div0;
 	let each_blocks = [];
 	let each_1_lookup = new Map();
 	let t1;
-	let div5;
-	let div2;
 	let div1;
 	let t2;
-	let span0;
-
-	let t3_value = /*$_*/ ctx[5]('accountCenter.connectAnotherWallet', {
-		default: en.accountCenter.connectAnotherWallet
-	}) + "";
-
+	let div13;
+	let div7;
+	let div3;
+	let walletappbadge0;
 	let t3;
 	let t4;
+	let div6;
 	let div4;
-	let div3;
+	let t5_value = /*$_*/ ctx[5]('accountCenter.currentNetwork', { default: en.accountCenter.currentNetwork }) + "";
 	let t5;
-	let span1;
-
-	let t6_value = /*$_*/ ctx[5]('accountCenter.disconnectAllWallets', {
-		default: en.accountCenter.disconnectAllWallets
-	}) + "";
-
 	let t6;
+	let div5;
+	let networkbadgeselector;
 	let t7;
-	let div17;
+	let div12;
 	let div11;
-	let div7;
-	let walletappbadge0;
+	let div9;
+	let walletappbadge1;
 	let t8;
+	let div8;
+	let successstatusicon;
 	let t9;
 	let div10;
-	let div8;
-	let t10_value = /*$_*/ ctx[5]('accountCenter.currentNetwork', { default: en.accountCenter.currentNetwork }) + "";
-	let t10;
-	let t11;
-	let div9;
-	let networkbadgeselector;
-	let t12;
-	let div16;
-	let div15;
-	let div13;
-	let walletappbadge1;
-	let t13;
-	let div12;
-	let successstatusicon;
-	let t14;
-	let div14;
 	let h4;
-	let t16;
+	let t11;
 	let p;
-	let t18;
-	let t19;
+	let t13;
+	let t14;
 	let button;
-	let t20_value = /*$_*/ ctx[5]('accountCenter.backToApp', { default: en.accountCenter.backToApp }) + "";
-	let t20;
-	let div19_intro;
+	let t15_value = /*$_*/ ctx[5]('accountCenter.backToApp', { default: en.accountCenter.backToApp }) + "";
+	let t15;
+	let div15_intro;
 	let current;
 	let mounted;
 	let dispose;
-	let if_block0 = /*disconnectConfirmModal*/ ctx[1] && create_if_block_4(ctx);
+	let if_block0 = /*disconnectConfirmModal*/ ctx[1] && create_if_block_5(ctx);
 	let each_value = /*$wallets$*/ ctx[0];
-	const get_key = ctx => /*wallet*/ ctx[18].label;
+	const get_key = ctx => /*wallet*/ ctx[19].label;
 
 	for (let i = 0; i < each_value.length; i += 1) {
 		let child_ctx = get_each_context(ctx, each_value, i);
 		let key = get_key(child_ctx);
 		each_1_lookup.set(key, each_blocks[i] = create_each_block(key, child_ctx));
 	}
+
+	let if_block1 = /*device*/ ctx[10].type === 'desktop' && create_if_block_4(ctx);
 
 	walletappbadge0 = new WalletAppBadge({
 			props: {
@@ -7916,7 +8049,7 @@ function create_fragment$3(ctx) {
 			}
 		});
 
-	let if_block1 = /*validAppChain*/ ctx[4] && create_if_block_3$1();
+	let if_block2 = /*validAppChain*/ ctx[4] && create_if_block_3$1();
 
 	networkbadgeselector = new NetworkSelector({
 			props: {
@@ -7939,15 +8072,15 @@ function create_fragment$3(ctx) {
 		});
 
 	successstatusicon = new SuccessStatusIcon({ props: { size: 14, color: "blue" } });
-	let if_block2 = /*appMetadata*/ ctx[8] && (/*appMetadata*/ ctx[8].gettingStartedGuide || /*appMetadata*/ ctx[8].explore) && create_if_block$3(ctx);
+	let if_block3 = /*appMetadata*/ ctx[8] && (/*appMetadata*/ ctx[8].gettingStartedGuide || /*appMetadata*/ ctx[8].explore) && create_if_block$3(ctx);
 
 	return {
 		c() {
 			if (if_block0) if_block0.c();
 			t0 = space();
-			div19 = element("div");
-			div18 = element("div");
-			div6 = element("div");
+			div15 = element("div");
+			div14 = element("div");
+			div2 = element("div");
 			div0 = element("div");
 
 			for (let i = 0; i < each_blocks.length; i += 1) {
@@ -7955,151 +8088,121 @@ function create_fragment$3(ctx) {
 			}
 
 			t1 = space();
-			div5 = element("div");
-			div2 = element("div");
 			div1 = element("div");
-			t2 = space();
-			span0 = element("span");
-			t3 = text(t3_value);
-			t4 = space();
-			div4 = element("div");
-			div3 = element("div");
-			t5 = space();
-			span1 = element("span");
-			t6 = text(t6_value);
-			t7 = space();
-			div17 = element("div");
-			div11 = element("div");
-			div7 = element("div");
-			create_component(walletappbadge0.$$.fragment);
-			t8 = space();
 			if (if_block1) if_block1.c();
+			t2 = space();
+			div13 = element("div");
+			div7 = element("div");
+			div3 = element("div");
+			create_component(walletappbadge0.$$.fragment);
+			t3 = space();
+			if (if_block2) if_block2.c();
+			t4 = space();
+			div6 = element("div");
+			div4 = element("div");
+			t5 = text(t5_value);
+			t6 = space();
+			div5 = element("div");
+			create_component(networkbadgeselector.$$.fragment);
+			t7 = space();
+			div12 = element("div");
+			div11 = element("div");
+			div9 = element("div");
+			create_component(walletappbadge1.$$.fragment);
+			t8 = space();
+			div8 = element("div");
+			create_component(successstatusicon.$$.fragment);
 			t9 = space();
 			div10 = element("div");
-			div8 = element("div");
-			t10 = text(t10_value);
-			t11 = space();
-			div9 = element("div");
-			create_component(networkbadgeselector.$$.fragment);
-			t12 = space();
-			div16 = element("div");
-			div15 = element("div");
-			div13 = element("div");
-			create_component(walletappbadge1.$$.fragment);
-			t13 = space();
-			div12 = element("div");
-			create_component(successstatusicon.$$.fragment);
-			t14 = space();
-			div14 = element("div");
 			h4 = element("h4");
 			h4.textContent = `${/*appMetadata*/ ctx[8] && /*appMetadata*/ ctx[8].name || 'App Name'}`;
-			t16 = space();
+			t11 = space();
 			p = element("p");
 			p.textContent = `${/*appMetadata*/ ctx[8] && /*appMetadata*/ ctx[8].description || 'This app has not added a description.'}`;
-			t18 = space();
-			if (if_block2) if_block2.c();
-			t19 = space();
+			t13 = space();
+			if (if_block3) if_block3.c();
+			t14 = space();
 			button = element("button");
-			t20 = text(t20_value);
-			attr(div0, "class", "wallets svelte-uervkd");
-			attr(div1, "class", "plus-icon flex items-center justify-center svelte-uervkd");
-			attr(span0, "class", "action-text svelte-uervkd");
-			attr(div2, "class", "action-container flex items-center pointer svelte-uervkd");
-			attr(div3, "class", "arrow-forward flex items-center justify-center svelte-uervkd");
-			attr(span1, "class", "action-text svelte-uervkd");
-			attr(div4, "class", "action-container flex items-center mt pointer svelte-uervkd");
-			attr(div5, "class", "actions flex flex-column items-start svelte-uervkd");
-			attr(div6, "class", "p5 svelte-uervkd");
-			attr(div7, "class", "relative flex");
-			attr(div8, "class", "network-selector-label svelte-uervkd");
-			attr(div9, "class", "flex items-center");
-			attr(div10, "class", "network-selector-container svelte-uervkd");
-			attr(div11, "class", "flex items-center p5-5 svelte-uervkd");
-			set_style(div12, "right", "-5px");
-			set_style(div12, "bottom", "-5px");
-			attr(div12, "class", "drop-shadow absolute");
-			attr(div13, "class", "relative flex");
-			attr(h4, "class", "app-name svelte-uervkd");
-			attr(p, "class", "app-description svelte-uervkd");
-			attr(div14, "class", "ml4 svelte-uervkd");
-			attr(div15, "class", "flex items-start");
-			attr(button, "class", "app-button button-neutral-solid svelte-uervkd");
-			attr(div16, "class", "app-info-container svelte-uervkd");
-			attr(div17, "class", "network-container shadow-1 svelte-uervkd");
-			toggle_class(div17, "background-blue", /*validAppChain*/ ctx[4] && /*validAppChain*/ ctx[4].icon || /*defaultChainStyles*/ ctx[3]);
-			toggle_class(div17, "background-yellow", !/*validAppChain*/ ctx[4]);
-			toggle_class(div17, "background-gray", /*validAppChain*/ ctx[4] && !/*defaultChainStyles*/ ctx[3]);
-			attr(div18, "class", "wallets-section svelte-uervkd");
-			attr(div19, "class", "outer-container svelte-uervkd");
+			t15 = text(t15_value);
+			attr(div0, "class", "wallets svelte-2hyvvn");
+			attr(div1, "class", "actions flex flex-column items-start svelte-2hyvvn");
+			attr(div2, "class", "p5 svelte-2hyvvn");
+			attr(div3, "class", "relative flex");
+			attr(div4, "class", "network-selector-label svelte-2hyvvn");
+			attr(div5, "class", "flex items-center");
+			attr(div6, "class", "network-selector-container svelte-2hyvvn");
+			attr(div7, "class", "flex items-center p5-5 svelte-2hyvvn");
+			set_style(div8, "right", "-5px");
+			set_style(div8, "bottom", "-5px");
+			attr(div8, "class", "drop-shadow absolute");
+			attr(div9, "class", "relative flex");
+			attr(h4, "class", "app-name svelte-2hyvvn");
+			attr(p, "class", "app-description svelte-2hyvvn");
+			attr(div10, "class", "ml4 svelte-2hyvvn");
+			attr(div11, "class", "flex items-start");
+			attr(button, "class", "app-button button-neutral-solid svelte-2hyvvn");
+			attr(div12, "class", "app-info-container svelte-2hyvvn");
+			attr(div13, "class", "network-container shadow-1 svelte-2hyvvn");
+			toggle_class(div13, "background-blue", /*validAppChain*/ ctx[4] && /*validAppChain*/ ctx[4].icon || /*defaultChainStyles*/ ctx[3]);
+			toggle_class(div13, "background-yellow", !/*validAppChain*/ ctx[4]);
+			toggle_class(div13, "background-gray", /*validAppChain*/ ctx[4] && !/*defaultChainStyles*/ ctx[3]);
+			attr(div14, "class", "wallets-section svelte-2hyvvn");
+			attr(div15, "class", "outer-container svelte-2hyvvn");
 		},
 		m(target, anchor) {
 			if (if_block0) if_block0.m(target, anchor);
 			insert(target, t0, anchor);
-			insert(target, div19, anchor);
-			append(div19, div18);
-			append(div18, div6);
-			append(div6, div0);
+			insert(target, div15, anchor);
+			append(div15, div14);
+			append(div14, div2);
+			append(div2, div0);
 
 			for (let i = 0; i < each_blocks.length; i += 1) {
 				each_blocks[i].m(div0, null);
 			}
 
-			append(div6, t1);
-			append(div6, div5);
-			append(div5, div2);
+			append(div2, t1);
 			append(div2, div1);
-			div1.innerHTML = plusCircleIcon;
-			append(div2, t2);
-			append(div2, span0);
-			append(span0, t3);
-			append(div5, t4);
-			append(div5, div4);
-			append(div4, div3);
-			div3.innerHTML = arrowForwardIcon;
+			if (if_block1) if_block1.m(div1, null);
+			append(div14, t2);
+			append(div14, div13);
+			append(div13, div7);
+			append(div7, div3);
+			mount_component(walletappbadge0, div3, null);
+			append(div3, t3);
+			if (if_block2) if_block2.m(div3, null);
+			append(div7, t4);
+			append(div7, div6);
+			append(div6, div4);
 			append(div4, t5);
-			append(div4, span1);
-			append(span1, t6);
-			append(div18, t7);
-			append(div18, div17);
-			append(div17, div11);
-			append(div11, div7);
-			mount_component(walletappbadge0, div7, null);
-			append(div7, t8);
-			if (if_block1) if_block1.m(div7, null);
+			append(div6, t6);
+			append(div6, div5);
+			mount_component(networkbadgeselector, div5, null);
+			append(div13, t7);
+			append(div13, div12);
+			append(div12, div11);
+			append(div11, div9);
+			mount_component(walletappbadge1, div9, null);
+			append(div9, t8);
+			append(div9, div8);
+			mount_component(successstatusicon, div8, null);
 			append(div11, t9);
 			append(div11, div10);
-			append(div10, div8);
-			append(div8, t10);
+			append(div10, h4);
 			append(div10, t11);
-			append(div10, div9);
-			mount_component(networkbadgeselector, div9, null);
-			append(div17, t12);
-			append(div17, div16);
-			append(div16, div15);
-			append(div15, div13);
-			mount_component(walletappbadge1, div13, null);
-			append(div13, t13);
-			append(div13, div12);
-			mount_component(successstatusicon, div12, null);
-			append(div15, t14);
-			append(div15, div14);
-			append(div14, h4);
-			append(div14, t16);
-			append(div14, p);
-			append(div16, t18);
-			if (if_block2) if_block2.m(div16, null);
-			append(div16, t19);
-			append(div16, button);
-			append(button, t20);
+			append(div10, p);
+			append(div12, t13);
+			if (if_block3) if_block3.m(div12, null);
+			append(div12, t14);
+			append(div12, button);
+			append(button, t15);
 			current = true;
 
 			if (!mounted) {
 				dispose = [
-					listen(div2, "click", /*click_handler_1*/ ctx[15]),
-					listen(div4, "click", /*click_handler_2*/ ctx[16]),
-					listen(div9, "click", /*click_handler*/ ctx[12]),
-					listen(button, "click", /*click_handler_3*/ ctx[17]),
-					listen(div19, "click", stop_propagation(function () {
+					listen(div5, "click", /*click_handler*/ ctx[13]),
+					listen(button, "click", /*click_handler_3*/ ctx[18]),
+					listen(div15, "click", stop_propagation(function () {
 						if (is_function(/*hideWalletRowMenu*/ ctx[2])) /*hideWalletRowMenu*/ ctx[2].apply(this, arguments);
 					}))
 				];
@@ -8118,7 +8221,7 @@ function create_fragment$3(ctx) {
 						transition_in(if_block0, 1);
 					}
 				} else {
-					if_block0 = create_if_block_4(ctx);
+					if_block0 = create_if_block_5(ctx);
 					if_block0.c();
 					transition_in(if_block0, 1);
 					if_block0.m(t0.parentNode, t0);
@@ -8140,14 +8243,7 @@ function create_fragment$3(ctx) {
 				check_outros();
 			}
 
-			if ((!current || dirty & /*$_*/ 32) && t3_value !== (t3_value = /*$_*/ ctx[5]('accountCenter.connectAnotherWallet', {
-				default: en.accountCenter.connectAnotherWallet
-			}) + "")) set_data(t3, t3_value);
-
-			if ((!current || dirty & /*$_*/ 32) && t6_value !== (t6_value = /*$_*/ ctx[5]('accountCenter.disconnectAllWallets', {
-				default: en.accountCenter.disconnectAllWallets
-			}) + "")) set_data(t6, t6_value);
-
+			if (/*device*/ ctx[10].type === 'desktop') if_block1.p(ctx, dirty);
 			const walletappbadge0_changes = {};
 
 			if (dirty & /*validAppChain*/ 16) walletappbadge0_changes.color = !/*validAppChain*/ ctx[4]
@@ -8165,40 +8261,40 @@ function create_fragment$3(ctx) {
 			walletappbadge0.$set(walletappbadge0_changes);
 
 			if (/*validAppChain*/ ctx[4]) {
-				if (if_block1) {
+				if (if_block2) {
 					if (dirty & /*validAppChain*/ 16) {
-						transition_in(if_block1, 1);
+						transition_in(if_block2, 1);
 					}
 				} else {
-					if_block1 = create_if_block_3$1();
-					if_block1.c();
-					transition_in(if_block1, 1);
-					if_block1.m(div7, null);
+					if_block2 = create_if_block_3$1();
+					if_block2.c();
+					transition_in(if_block2, 1);
+					if_block2.m(div3, null);
 				}
-			} else if (if_block1) {
+			} else if (if_block2) {
 				group_outros();
 
-				transition_out(if_block1, 1, 1, () => {
-					if_block1 = null;
+				transition_out(if_block2, 1, 1, () => {
+					if_block2 = null;
 				});
 
 				check_outros();
 			}
 
-			if ((!current || dirty & /*$_*/ 32) && t10_value !== (t10_value = /*$_*/ ctx[5]('accountCenter.currentNetwork', { default: en.accountCenter.currentNetwork }) + "")) set_data(t10, t10_value);
-			if (/*appMetadata*/ ctx[8] && (/*appMetadata*/ ctx[8].gettingStartedGuide || /*appMetadata*/ ctx[8].explore)) if_block2.p(ctx, dirty);
-			if ((!current || dirty & /*$_*/ 32) && t20_value !== (t20_value = /*$_*/ ctx[5]('accountCenter.backToApp', { default: en.accountCenter.backToApp }) + "")) set_data(t20, t20_value);
+			if ((!current || dirty & /*$_*/ 32) && t5_value !== (t5_value = /*$_*/ ctx[5]('accountCenter.currentNetwork', { default: en.accountCenter.currentNetwork }) + "")) set_data(t5, t5_value);
+			if (/*appMetadata*/ ctx[8] && (/*appMetadata*/ ctx[8].gettingStartedGuide || /*appMetadata*/ ctx[8].explore)) if_block3.p(ctx, dirty);
+			if ((!current || dirty & /*$_*/ 32) && t15_value !== (t15_value = /*$_*/ ctx[5]('accountCenter.backToApp', { default: en.accountCenter.backToApp }) + "")) set_data(t15, t15_value);
 
 			if (dirty & /*validAppChain, defaultChainStyles*/ 24) {
-				toggle_class(div17, "background-blue", /*validAppChain*/ ctx[4] && /*validAppChain*/ ctx[4].icon || /*defaultChainStyles*/ ctx[3]);
+				toggle_class(div13, "background-blue", /*validAppChain*/ ctx[4] && /*validAppChain*/ ctx[4].icon || /*defaultChainStyles*/ ctx[3]);
 			}
 
 			if (dirty & /*validAppChain*/ 16) {
-				toggle_class(div17, "background-yellow", !/*validAppChain*/ ctx[4]);
+				toggle_class(div13, "background-yellow", !/*validAppChain*/ ctx[4]);
 			}
 
 			if (dirty & /*validAppChain, defaultChainStyles*/ 24) {
-				toggle_class(div17, "background-gray", /*validAppChain*/ ctx[4] && !/*defaultChainStyles*/ ctx[3]);
+				toggle_class(div13, "background-gray", /*validAppChain*/ ctx[4] && !/*defaultChainStyles*/ ctx[3]);
 			}
 		},
 		i(local) {
@@ -8210,14 +8306,14 @@ function create_fragment$3(ctx) {
 			}
 
 			transition_in(walletappbadge0.$$.fragment, local);
-			transition_in(if_block1);
+			transition_in(if_block2);
 			transition_in(networkbadgeselector.$$.fragment, local);
 			transition_in(walletappbadge1.$$.fragment, local);
 			transition_in(successstatusicon.$$.fragment, local);
 
-			if (!div19_intro) {
+			if (!div15_intro) {
 				add_render_callback(() => {
-					div19_intro = create_in_transition(div19, fly, {
+					div15_intro = create_in_transition(div15, fly, {
 						delay: /*position*/ ctx[9].includes('top') ? 100 : 0,
 						duration: 600,
 						y: /*position*/ ctx[9].includes('top') ? 56 : -76,
@@ -8225,7 +8321,7 @@ function create_fragment$3(ctx) {
 						opacity: 0
 					});
 
-					div19_intro.start();
+					div15_intro.start();
 				});
 			}
 
@@ -8239,7 +8335,7 @@ function create_fragment$3(ctx) {
 			}
 
 			transition_out(walletappbadge0.$$.fragment, local);
-			transition_out(if_block1);
+			transition_out(if_block2);
 			transition_out(networkbadgeselector.$$.fragment, local);
 			transition_out(walletappbadge1.$$.fragment, local);
 			transition_out(successstatusicon.$$.fragment, local);
@@ -8248,25 +8344,26 @@ function create_fragment$3(ctx) {
 		d(detaching) {
 			if (if_block0) if_block0.d(detaching);
 			if (detaching) detach(t0);
-			if (detaching) detach(div19);
+			if (detaching) detach(div15);
 
 			for (let i = 0; i < each_blocks.length; i += 1) {
 				each_blocks[i].d();
 			}
 
-			destroy_component(walletappbadge0);
 			if (if_block1) if_block1.d();
+			destroy_component(walletappbadge0);
+			if (if_block2) if_block2.d();
 			destroy_component(networkbadgeselector);
 			destroy_component(walletappbadge1);
 			destroy_component(successstatusicon);
-			if (if_block2) if_block2.d();
+			if (if_block3) if_block3.d();
 			mounted = false;
 			run_all(dispose);
 		}
 	};
 }
 
-function instance$3($$self, $$props, $$invalidate) {
+function instance$4($$self, $$props, $$invalidate) {
 	let primaryWallet;
 	let connectedChain;
 	let validAppChain;
@@ -8285,6 +8382,7 @@ function instance$3($$self, $$props, $$invalidate) {
 	let disconnectConfirmModal = false;
 	let hideWalletRowMenu;
 	const { position } = state.get().accountCenter;
+	const device = getDevice();
 
 	function click_handler(event) {
 		bubble.call(this, $$self, event);
@@ -8303,20 +8401,20 @@ function instance$3($$self, $$props, $$invalidate) {
 
 	$$self.$$.update = () => {
 		if ($$self.$$.dirty & /*$wallets$*/ 1) {
-			$$invalidate(11, [primaryWallet] = $wallets$, primaryWallet);
+			$$invalidate(12, [primaryWallet] = $wallets$, primaryWallet);
 		}
 
-		if ($$self.$$.dirty & /*primaryWallet*/ 2048) {
-			$$invalidate(10, [connectedChain] = primaryWallet ? primaryWallet.chains : [], connectedChain);
+		if ($$self.$$.dirty & /*primaryWallet*/ 4096) {
+			$$invalidate(11, [connectedChain] = primaryWallet ? primaryWallet.chains : [], connectedChain);
 		}
 
-		if ($$self.$$.dirty & /*connectedChain*/ 1024) {
+		if ($$self.$$.dirty & /*connectedChain*/ 2048) {
 			$$invalidate(4, validAppChain = appChains.find(({ id, namespace }) => connectedChain
 			? id === connectedChain.id && namespace === connectedChain.namespace
 			: false));
 		}
 
-		if ($$self.$$.dirty & /*connectedChain*/ 1024) {
+		if ($$self.$$.dirty & /*connectedChain*/ 2048) {
 			$$invalidate(3, defaultChainStyles = getDefaultChainStyles(connectedChain && connectedChain.id));
 		}
 	};
@@ -8332,6 +8430,7 @@ function instance$3($$self, $$props, $$invalidate) {
 		appChains,
 		appMetadata,
 		position,
+		device,
 		connectedChain,
 		primaryWallet,
 		click_handler,
@@ -8346,17 +8445,17 @@ function instance$3($$self, $$props, $$invalidate) {
 class Maximized extends SvelteComponent {
 	constructor(options) {
 		super();
-		init$1(this, options, instance$3, create_fragment$3, safe_not_equal, {}, add_css$3);
+		init$1(this, options, instance$4, create_fragment$4, safe_not_equal, {}, add_css$4);
 	}
 }
 
 /* src/views/account-center/Minimized.svelte generated by Svelte v3.46.4 */
 
-function add_css$2(target) {
-	append_styles(target, "svelte-10u796u", ".minimized.svelte-10u796u{background-color:var(--onboard-white, var(--white));border:1px solid var(--onboard-gray-100, var(--gray-100));width:100%;box-shadow:var(--onboard-shadow-3, var(--shadow-3))}.radius.svelte-10u796u{border-radius:16px}.padding-5.svelte-10u796u{padding:var(--onboard-spacing-5, var(--spacing-5))}.drop-shadow.svelte-10u796u{filter:drop-shadow(0px 1px 4px rgba(0, 0, 0, 0.2))}.address.svelte-10u796u{font-weight:700;line-height:var(--onboard-font-line-height-2, var(--font-line-height-2))}.balance.svelte-10u796u{font-weight:400;line-height:var(--onboard-font-line-height-2, var(--font-line-height-2));color:var(--onboard-gray-400, var(--gray-400))}.network.svelte-10u796u{margin-left:0.5rem}.chain-icon.svelte-10u796u{width:22px;height:22px;padding:4px;border-radius:25px;margin-right:4px}.container.svelte-10u796u{border:1px solid transparent;border-radius:16px;padding:1px;transition:border-color 250ms ease-in-out, backround 250ms ease-in-out;max-width:128px;cursor:default}.color-yellow.svelte-10u796u{color:var(--onboard-warning-500, var(--warning-500))}.color-white.svelte-10u796u{color:var(--onboard-primary-100, var(--primary-100))}");
+function add_css$3(target) {
+	append_styles(target, "svelte-1wn4jd", ".minimized.svelte-1wn4jd{background-color:var(--onboard-white, var(--white));border:1px solid var(--onboard-gray-100, var(--gray-100));width:100%;box-shadow:var(--onboard-shadow-3, var(--shadow-3))}.radius.svelte-1wn4jd{border-radius:var(--onboard-border-radius-3, var(--border-radius-3))}.padding-5.svelte-1wn4jd{padding:var(--onboard-spacing-5, var(--spacing-5))}.drop-shadow.svelte-1wn4jd{filter:drop-shadow(0px 1px 4px rgba(0, 0, 0, 0.2))}.address.svelte-1wn4jd{font-weight:700;line-height:var(--onboard-font-line-height-2, var(--font-line-height-2))}.balance.svelte-1wn4jd{font-weight:400;line-height:var(--onboard-font-line-height-2, var(--font-line-height-2));color:var(--onboard-gray-400, var(--gray-400))}.network.svelte-1wn4jd{margin-left:0.5rem}.chain-icon.svelte-1wn4jd{width:22px;height:22px;padding:4px;border-radius:25px;margin-right:4px}.container.svelte-1wn4jd{border:1px solid transparent;border-radius:16px;padding:1px;transition:border-color 250ms ease-in-out, backround 250ms ease-in-out;max-width:128px;cursor:default}.color-yellow.svelte-1wn4jd{color:var(--onboard-warning-500, var(--warning-500))}.color-white.svelte-1wn4jd{color:var(--onboard-primary-100, var(--primary-100))}");
 }
 
-// (147:8) {#if firstAddressBalance}
+// (143:8) {#if firstAddressBalance}
 function create_if_block$2(ctx) {
 	let div;
 
@@ -8375,7 +8474,7 @@ function create_if_block$2(ctx) {
 			t0 = text(t0_value);
 			t1 = space();
 			t2 = text(/*firstAddressAsset*/ ctx[1]);
-			attr(div, "class", "balance svelte-10u796u");
+			attr(div, "class", "balance svelte-1wn4jd");
 		},
 		m(target, anchor) {
 			insert(target, div, anchor);
@@ -8405,7 +8504,7 @@ function create_if_block$2(ctx) {
 	};
 }
 
-function create_fragment$2(ctx) {
+function create_fragment$3(ctx) {
 	let div12;
 	let div11;
 	let div6;
@@ -8510,18 +8609,18 @@ function create_fragment$2(ctx) {
 			div7 = element("div");
 			t6 = space();
 			create_component(networkselector.$$.fragment);
-			attr(div0, "class", "drop-shadow svelte-10u796u");
+			attr(div0, "class", "drop-shadow svelte-1wn4jd");
 			set_style(div1, "right", "0.5rem");
-			attr(div1, "class", "drop-shadow relative svelte-10u796u");
+			attr(div1, "class", "drop-shadow relative svelte-1wn4jd");
 			set_style(div2, "right", "5px");
 			set_style(div2, "bottom", "-5px");
-			attr(div2, "class", "drop-shadow absolute svelte-10u796u");
+			attr(div2, "class", "drop-shadow absolute svelte-1wn4jd");
 			attr(div3, "class", "flex items-centered relative");
-			attr(div4, "class", "address svelte-10u796u");
+			attr(div4, "class", "address svelte-1wn4jd");
 			attr(div5, "class", "flex flex-column");
 			set_style(div5, "height", "40px");
 			attr(div6, "class", "flex items-center w-100");
-			attr(div7, "class", "chain-icon flex justify-center items-center svelte-10u796u");
+			attr(div7, "class", "chain-icon flex justify-center items-center svelte-1wn4jd");
 
 			attr(div7, "style", div7_style_value = `background-color: ${/*validAppChain*/ ctx[3]
 			? /*validAppChain*/ ctx[3].color || /*defaultChainStyles*/ ctx[2] && /*defaultChainStyles*/ ctx[2].color || unrecognizedChainStyle.color
@@ -8530,12 +8629,12 @@ function create_fragment$2(ctx) {
 			toggle_class(div7, "color-yellow", !/*validAppChain*/ ctx[3]);
 			toggle_class(div7, "color-white", /*validAppChain*/ ctx[3] && !/*validAppChain*/ ctx[3].icon);
 			attr(div8, "class", "flex items-center");
-			attr(div9, "class", "container shadow-1 flex items-center svelte-10u796u");
+			attr(div9, "class", "container shadow-1 flex items-center svelte-1wn4jd");
 			attr(div9, "style", div9_style_value = `border-color: ${/*validAppChain*/ ctx[3] ? '#D0D4F7' : '#FFAF00'}; background-color: ${/*validAppChain*/ ctx[3] ? '#EFF1FC' : '#FFEFCC'}`);
-			attr(div10, "class", "network svelte-10u796u");
+			attr(div10, "class", "network svelte-1wn4jd");
 			attr(div11, "class", "flex items-center justify-between");
 			set_style(div11, "padding", "0 4px");
-			attr(div12, "class", "minimized pointer radius padding-5 svelte-10u796u");
+			attr(div12, "class", "minimized pointer radius padding-5 svelte-1wn4jd");
 		},
 		m(target, anchor) {
 			insert(target, div12, anchor);
@@ -8666,7 +8765,7 @@ function create_fragment$2(ctx) {
 	};
 }
 
-function instance$2($$self, $$props, $$invalidate) {
+function instance$3($$self, $$props, $$invalidate) {
 	let primaryWallet;
 	let firstAccount;
 	let ensName;
@@ -8759,6 +8858,153 @@ function instance$2($$self, $$props, $$invalidate) {
 class Minimized extends SvelteComponent {
 	constructor(options) {
 		super();
+		init$1(this, options, instance$3, create_fragment$3, safe_not_equal, {}, add_css$3);
+	}
+}
+
+/* src/views/account-center/Micro.svelte generated by Svelte v3.46.4 */
+
+function add_css$2(target) {
+	append_styles(target, "svelte-i0wrty", ".minimized.svelte-i0wrty{background-color:var(--onboard-white, var(--white));border:1px solid var(--onboard-gray-100, var(--gray-100));box-shadow:var(--onboard-shadow-3, var(--shadow-3))}.radius.svelte-i0wrty{border-radius:var(--onboard-border-radius-3, var(--border-radius-3))}.drop-shadow.svelte-i0wrty{filter:drop-shadow(0px 1px 4px rgba(0, 0, 0, 0.2))}.inner-box-wrapper.svelte-i0wrty{display:flex;flex-flow:row nowrap;padding:12px}.wallet-square-wrapper.svelte-i0wrty{position:relative;margin-left:-8px}.check-icon-wrapper.svelte-i0wrty{position:absolute;right:-4px;bottom:-4px}");
+}
+
+function create_fragment$2(ctx) {
+	let div5;
+	let div4;
+	let div0;
+	let walletappbadge0;
+	let t0;
+	let div3;
+	let div1;
+	let walletappbadge1;
+	let t1;
+	let div2;
+	let successstatusicon;
+	let current;
+	let mounted;
+	let dispose;
+
+	walletappbadge0 = new WalletAppBadge({
+			props: {
+				size: 32,
+				padding: 4,
+				background: 'white',
+				border: "darkGreen",
+				radius: 8,
+				icon: /*appIcon*/ ctx[1]
+			}
+		});
+
+	walletappbadge1 = new WalletAppBadge({
+			props: {
+				size: 32,
+				padding: 4,
+				background: "green",
+				border: "darkGreen",
+				radius: 8,
+				icon: /*primaryWallet*/ ctx[0]
+				? /*primaryWallet*/ ctx[0].icon
+				: ''
+			}
+		});
+
+	successstatusicon = new SuccessStatusIcon({ props: { size: 14 } });
+
+	return {
+		c() {
+			div5 = element("div");
+			div4 = element("div");
+			div0 = element("div");
+			create_component(walletappbadge0.$$.fragment);
+			t0 = space();
+			div3 = element("div");
+			div1 = element("div");
+			create_component(walletappbadge1.$$.fragment);
+			t1 = space();
+			div2 = element("div");
+			create_component(successstatusicon.$$.fragment);
+			attr(div0, "class", "drop-shadow svelte-i0wrty");
+			attr(div1, "class", "drop-shadow svelte-i0wrty");
+			attr(div2, "class", "check-icon-wrapper drop-shadow svelte-i0wrty");
+			attr(div3, "class", "wallet-square-wrapper svelte-i0wrty");
+			attr(div4, "class", "inner-box-wrapper svelte-i0wrty");
+			attr(div5, "class", "minimized pointer radius svelte-i0wrty");
+		},
+		m(target, anchor) {
+			insert(target, div5, anchor);
+			append(div5, div4);
+			append(div4, div0);
+			mount_component(walletappbadge0, div0, null);
+			append(div4, t0);
+			append(div4, div3);
+			append(div3, div1);
+			mount_component(walletappbadge1, div1, null);
+			append(div3, t1);
+			append(div3, div2);
+			mount_component(successstatusicon, div2, null);
+			current = true;
+
+			if (!mounted) {
+				dispose = listen(div5, "click", stop_propagation(/*maximize*/ ctx[2]));
+				mounted = true;
+			}
+		},
+		p(ctx, [dirty]) {
+			const walletappbadge1_changes = {};
+
+			if (dirty & /*primaryWallet*/ 1) walletappbadge1_changes.icon = /*primaryWallet*/ ctx[0]
+			? /*primaryWallet*/ ctx[0].icon
+			: '';
+
+			walletappbadge1.$set(walletappbadge1_changes);
+		},
+		i(local) {
+			if (current) return;
+			transition_in(walletappbadge0.$$.fragment, local);
+			transition_in(walletappbadge1.$$.fragment, local);
+			transition_in(successstatusicon.$$.fragment, local);
+			current = true;
+		},
+		o(local) {
+			transition_out(walletappbadge0.$$.fragment, local);
+			transition_out(walletappbadge1.$$.fragment, local);
+			transition_out(successstatusicon.$$.fragment, local);
+			current = false;
+		},
+		d(detaching) {
+			if (detaching) detach(div5);
+			destroy_component(walletappbadge0);
+			destroy_component(walletappbadge1);
+			destroy_component(successstatusicon);
+			mounted = false;
+			dispose();
+		}
+	};
+}
+
+function instance$2($$self, $$props, $$invalidate) {
+	let primaryWallet;
+	let $wallets$;
+	component_subscribe($$self, wallets$, $$value => $$invalidate(3, $wallets$ = $$value));
+	const { appMetadata } = internalState$.getValue();
+	const appIcon = appMetadata && appMetadata.icon || questionIcon;
+
+	function maximize() {
+		updateAccountCenter({ expanded: true });
+	}
+
+	$$self.$$.update = () => {
+		if ($$self.$$.dirty & /*$wallets$*/ 8) {
+			$$invalidate(0, [primaryWallet] = $wallets$, primaryWallet);
+		}
+	};
+
+	return [primaryWallet, appIcon, maximize, $wallets$];
+}
+
+class Micro extends SvelteComponent {
+	constructor(options) {
+		super();
 		init$1(this, options, instance$2, create_fragment$2, safe_not_equal, {}, add_css$2);
 	}
 }
@@ -8766,10 +9012,10 @@ class Minimized extends SvelteComponent {
 /* src/views/account-center/Index.svelte generated by Svelte v3.46.4 */
 
 function add_css$1(target) {
-	append_styles(target, "svelte-2tc7bq", ".container.svelte-2tc7bq{padding:16px;max-width:364px;min-width:348px;font-family:var(--onboard-font-family-normal, var(--font-family-normal))}");
+	append_styles(target, "svelte-1pyqdjs", ".container.svelte-1pyqdjs{padding:16px;font-family:var(--onboard-font-family-normal, var(--font-family-normal));width:100%}@media all and (min-width: 428px){.container.svelte-1pyqdjs{max-width:352px}}");
 }
 
-// (36:2) {:else}
+// (51:2) {:else}
 function create_else_block(ctx) {
 	let maximized;
 	let current;
@@ -8798,7 +9044,36 @@ function create_else_block(ctx) {
 	};
 }
 
-// (33:2) {#if !settings.expanded}
+// (48:51) 
+function create_if_block_1$1(ctx) {
+	let micro;
+	let current;
+	micro = new Micro({});
+
+	return {
+		c() {
+			create_component(micro.$$.fragment);
+		},
+		m(target, anchor) {
+			mount_component(micro, target, anchor);
+			current = true;
+		},
+		i(local) {
+			if (current) return;
+			transition_in(micro.$$.fragment, local);
+			current = true;
+		},
+		o(local) {
+			transition_out(micro.$$.fragment, local);
+			current = false;
+		},
+		d(detaching) {
+			destroy_component(micro, detaching);
+		}
+	};
+}
+
+// (45:2) {#if !settings.expanded && !settings.minimal}
 function create_if_block$1(ctx) {
 	let minimized;
 	let current;
@@ -8835,12 +9110,13 @@ function create_fragment$1(ctx) {
 	let current;
 	let mounted;
 	let dispose;
-	const if_block_creators = [create_if_block$1, create_else_block];
+	const if_block_creators = [create_if_block$1, create_if_block_1$1, create_else_block];
 	const if_blocks = [];
 
 	function select_block_type(ctx, dirty) {
-		if (!/*settings*/ ctx[0].expanded) return 0;
-		return 1;
+		if (!/*settings*/ ctx[0].expanded && !/*settings*/ ctx[0].minimal) return 0;
+		if (!/*settings*/ ctx[0].expanded && /*settings*/ ctx[0].minimal) return 1;
+		return 2;
 	}
 
 	current_block_type_index = select_block_type(ctx);
@@ -8850,8 +9126,11 @@ function create_fragment$1(ctx) {
 		c() {
 			div = element("div");
 			if_block.c();
-			attr(div, "class", "container flex flex-column absolute svelte-2tc7bq");
-			attr(div, "style", div_style_value = /*accountCenterPositions*/ ctx[1][/*settings*/ ctx[0].position]);
+			attr(div, "class", "container flex flex-column fixed svelte-1pyqdjs");
+
+			attr(div, "style", div_style_value = "" + (/*accountCenterPositions*/ ctx[1][/*settings*/ ctx[0].position] + " width: " + (!/*settings*/ ctx[0].expanded && /*settings*/ ctx[0].minimal
+			? 'auto'
+			: '100%')));
 		},
 		m(target, anchor) {
 			insert(target, div, anchor);
@@ -8886,7 +9165,9 @@ function create_fragment$1(ctx) {
 				if_block.m(div, null);
 			}
 
-			if (!current || dirty & /*settings*/ 1 && div_style_value !== (div_style_value = /*accountCenterPositions*/ ctx[1][/*settings*/ ctx[0].position])) {
+			if (!current || dirty & /*settings*/ 1 && div_style_value !== (div_style_value = "" + (/*accountCenterPositions*/ ctx[1][/*settings*/ ctx[0].position] + " width: " + (!/*settings*/ ctx[0].expanded && /*settings*/ ctx[0].minimal
+			? 'auto'
+			: '100%')))) {
 				attr(div, "style", div_style_value);
 			}
 		},
@@ -8921,7 +9202,11 @@ function instance$1($$self, $$props, $$invalidate) {
 	onDestroy(minimize);
 
 	function minimize() {
-		updateAccountCenter({ expanded: false });
+		const { accountCenter } = state.get();
+
+		if (accountCenter.expanded) {
+			updateAccountCenter({ expanded: false });
+		}
 	}
 
 	$$self.$$set = $$props => {
@@ -9275,7 +9560,8 @@ const API = {
         get: state.get,
         select: state.select,
         actions: {
-            setWalletModules
+            setWalletModules,
+            setLocale
         }
     }
 };
@@ -9291,17 +9577,24 @@ function init(options) {
     const { wallets, chains, appMetadata = null, i18n, accountCenter } = options;
     initialize(i18n);
     addChains(chains);
-    let accountCenterUpdate;
     const device = getDevice();
-    if (device.type === 'mobile') {
-        accountCenterUpdate = {
-            enabled: false
-        };
+    // update accountCenter
+    if (typeof accountCenter !== 'undefined') {
+        let accountCenterUpdate;
+        if (device.type === 'mobile' && accountCenter.mobile) {
+            accountCenterUpdate = {
+                ...APP_INITIAL_STATE.accountCenter,
+                ...accountCenter.mobile
+            };
+        }
+        else if (accountCenter.desktop) {
+            accountCenterUpdate = {
+                ...APP_INITIAL_STATE.accountCenter,
+                ...accountCenter.desktop
+            };
+        }
+        updateAccountCenter(accountCenterUpdate);
     }
-    else if (typeof accountCenter !== 'undefined' && accountCenter.desktop) {
-        accountCenterUpdate = accountCenter.desktop;
-    }
-    accountCenterUpdate && updateAccountCenter(accountCenterUpdate);
     const { svelteInstance } = internalState$.getValue();
     if (svelteInstance) {
         // if already initialized, need to cleanup old instance
@@ -9405,7 +9698,10 @@ function mountApp() {
           --spacing-7: 0.125rem;
   
           /* BORDER RADIUS */
-          --border-radius-1: 24px;  
+          --border-radius-1: 24px;
+          --border-radius-2: 20px;
+          --border-radius-3: 16px;
+
 
           /* SHADOWS */
           --shadow-0: none;

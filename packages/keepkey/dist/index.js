@@ -27,7 +27,8 @@ function keepkey() {
             getInterface: async ({ EventEmitter, chains }) => {
                 const { WebUSBKeepKeyAdapter } = await import('@shapeshiftoss/hdwallet-keepkey-webusb');
                 const { Keyring, Events, bip32ToAddressNList, addressNListToBIP32, HDWalletErrorType } = await import('@shapeshiftoss/hdwallet-core');
-                const { accountSelect, createEIP1193Provider, ProviderRpcError, entryModal } = await import('@web3-onboard/common');
+                const { accountSelect, createEIP1193Provider, ProviderRpcError, entryModal, bigNumberFieldsToStrings } = await import('@web3-onboard/common');
+                const { utils } = await import('ethers');
                 const { StaticJsonRpcProvider } = await import('@ethersproject/providers');
                 const ethUtil = await import('ethereumjs-util');
                 const keyring = new Keyring();
@@ -109,24 +110,33 @@ function keepkey() {
                     }
                     return accounts;
                 };
+                let ethersProvider;
                 const scanAccounts = async ({ derivationPath, chainId, asset }) => {
                     if (!keepKeyWallet)
                         throw new Error('Device must be connected before scanning accounts');
                     currentChain = chains.find(({ id }) => id === chainId) || currentChain;
-                    const provider = new StaticJsonRpcProvider(currentChain.rpcUrl);
+                    ethersProvider = new StaticJsonRpcProvider(currentChain.rpcUrl);
                     // Checks to see if this is a custom derivation path
                     // If it is then just return the single account
                     if (!DEFAULT_BASE_PATHS.find(({ value }) => value === derivationPath)) {
                         try {
                             const accountIdx = getAccountIdx(derivationPath);
-                            const account = await getAccount({ accountIdx, provider, asset });
+                            const account = await getAccount({
+                                accountIdx,
+                                provider: ethersProvider,
+                                asset
+                            });
                             return [account];
                         }
                         catch (error) {
                             throw new Error('Invalid derivation path');
                         }
                     }
-                    return getAllAccounts({ derivationPath, asset, provider });
+                    return getAllAccounts({
+                        derivationPath,
+                        asset,
+                        provider: ethersProvider
+                    });
                 };
                 const getAccounts = async () => {
                     accounts = await accountSelect({
@@ -242,12 +252,22 @@ function keepkey() {
                     eth_signTransaction: async ({ params: [transactionObject] }) => {
                         if (!accounts || !Array.isArray(accounts) || !accounts.length)
                             throw new Error('No account selected. Must call eth_requestAccounts first.');
+                        // Per the code above if accounts is empty or undefined then this line of code won't execute
+                        // ∴ account must be defined here which is why it is cast without the 'undefined' type
                         const account = !transactionObject || !transactionObject.hasOwnProperty('from')
                             ? accounts[0]
-                            : accounts.find(account => account.address === transactionObject.from);
-                        const { derivationPath } = account || accounts[0];
+                            : accounts.find(account => account.address.toLocaleLowerCase() ===
+                                transactionObject.from.toLocaleLowerCase());
+                        const { derivationPath, address } = account;
                         const addressNList = bip32ToAddressNList(derivationPath);
-                        const { nonce, gasPrice, gas, gasLimit, to, value, data, maxFeePerGas, maxPriorityFeePerGas } = transactionObject;
+                        const signer = ethersProvider.getSigner(address);
+                        transactionObject.gasLimit =
+                            transactionObject.gas || transactionObject.gasLimit;
+                        // 'gas' is an invalid property for the TransactionRequest type
+                        delete transactionObject.gas;
+                        transactionObject.gasLimit = undefined;
+                        let populatedTransaction = await signer.populateTransaction(transactionObject);
+                        const { to, value, nonce, gasLimit, gasPrice, maxFeePerGas, maxPriorityFeePerGas, data } = bigNumberFieldsToStrings(populatedTransaction);
                         const gasData = gasPrice
                             ? {
                                 gasPrice
@@ -258,12 +278,12 @@ function keepkey() {
                             };
                         const txn = {
                             addressNList,
-                            nonce: nonce || '0x0',
-                            gasLimit: gasLimit || gas || '0x5208',
-                            to,
-                            value: value || '0x0',
-                            data: data || '',
                             chainId: parseInt(currentChain.id),
+                            to: to || '',
+                            value: value || '',
+                            nonce: utils.hexValue(nonce),
+                            gasLimit: gasLimit || '0x0',
+                            data: (data === null || data === void 0 ? void 0 : data.toString()) || '',
                             ...gasData
                         };
                         let serialized;

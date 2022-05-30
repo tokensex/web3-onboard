@@ -74,17 +74,18 @@ function ledger({ customNetwork } = {}) {
                 const ethUtil = await import('ethereumjs-util');
                 const { SignTypedDataVersion } = await import('@metamask/eth-sig-util');
                 const { StaticJsonRpcProvider } = await import('@ethersproject/providers');
-                const { accountSelect, createEIP1193Provider, ProviderRpcError, getCommon } = await import('@web3-onboard/common');
+                const { accountSelect, createEIP1193Provider, ProviderRpcError, getCommon, bigNumberFieldsToStrings } = await import('@web3-onboard/common');
                 const { TransactionFactory: Transaction, Capability } = await import('@ethereumjs/tx');
                 const transport = await getTransport();
                 const eth = new Eth(transport);
                 const eventEmitter = new EventEmitter();
+                let ethersProvider;
                 let currentChain = chains[0];
                 const scanAccounts = async ({ derivationPath, chainId, asset }) => {
                     try {
                         currentChain =
                             chains.find(({ id }) => id === chainId) || currentChain;
-                        const provider = new StaticJsonRpcProvider(currentChain.rpcUrl);
+                        ethersProvider = new StaticJsonRpcProvider(currentChain.rpcUrl);
                         // Checks to see if this is a custom derivation path
                         // If it is then just return the single account
                         if (derivationPath !== LEDGER_LIVE_PATH &&
@@ -96,12 +97,12 @@ function ledger({ customNetwork } = {}) {
                                     address,
                                     balance: {
                                         asset: asset.label,
-                                        value: await provider.getBalance(address)
+                                        value: await ethersProvider.getBalance(address)
                                     }
                                 }
                             ];
                         }
-                        return getAddresses(derivationPath, asset, provider, eth);
+                        return getAddresses(derivationPath, asset, ethersProvider, eth);
                     }
                     catch (error) {
                         const { statusText } = error;
@@ -200,9 +201,15 @@ function ledger({ customNetwork } = {}) {
                         const common = await getCommon({ customNetwork, chainId });
                         transactionObject.gasLimit =
                             transactionObject.gas || transactionObject.gasLimit;
-                        const transaction = Transaction.fromTxData({
-                            ...transactionObject
-                        }, { common });
+                        // 'gas' is an invalid property for the TransactionRequest type
+                        delete transactionObject.gas;
+                        const signer = ethersProvider.getSigner(from);
+                        let populatedTransaction = await signer.populateTransaction(transactionObject);
+                        populatedTransaction =
+                            bigNumberFieldsToStrings(populatedTransaction);
+                        const transaction = Transaction.fromTxData(populatedTransaction, {
+                            common
+                        });
                         let unsignedTx = transaction.getMessageToSign(false);
                         // If this is not an EIP1559 transaction then it is legacy and it needs to be
                         // rlp encoded before being passed to ledger
@@ -212,7 +219,7 @@ function ledger({ customNetwork } = {}) {
                         const { v, r, s } = await eth.signTransaction(derivationPath, unsignedTx.toString('hex'));
                         // Reconstruct the signed transaction
                         const signedTx = Transaction.fromTxData({
-                            ...transactionObject,
+                            ...populatedTransaction,
                             v: `0x${v}`,
                             r: `0x${r}`,
                             s: `0x${s}`

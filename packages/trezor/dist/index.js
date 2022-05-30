@@ -66,7 +66,7 @@ function trezor(options) {
             getInterface: async ({ EventEmitter, chains }) => {
                 const { default: Trezor } = await import('trezor-connect');
                 const { Transaction } = await import('@ethereumjs/tx');
-                const { accountSelect, createEIP1193Provider, ProviderRpcError, getCommon } = await import('@web3-onboard/common');
+                const { accountSelect, bigNumberFieldsToStrings, createEIP1193Provider, ProviderRpcError, getCommon } = await import('@web3-onboard/common');
                 const ethUtil = await import('ethereumjs-util');
                 const { compress } = (await import('eth-crypto')).publicKey;
                 const { StaticJsonRpcProvider } = await import('@ethersproject/providers');
@@ -83,9 +83,10 @@ function trezor(options) {
                 const eventEmitter = new EventEmitter();
                 let currentChain = chains[0];
                 let account;
+                let ethersProvider;
                 const scanAccounts = async ({ derivationPath, chainId, asset }) => {
                     currentChain = chains.find(({ id }) => id === chainId) || currentChain;
-                    const provider = new StaticJsonRpcProvider(currentChain.rpcUrl);
+                    ethersProvider = new StaticJsonRpcProvider(currentChain.rpcUrl);
                     const { publicKey, chainCode, path } = await getPublicKey(derivationPath);
                     if (derivationPath !== TREZOR_DEFAULT_PATH) {
                         const address = await getAddress(path);
@@ -95,7 +96,7 @@ function trezor(options) {
                                 address,
                                 balance: {
                                     asset: asset.label,
-                                    value: await provider.getBalance(address.toLowerCase())
+                                    value: await ethersProvider.getBalance(address.toLowerCase())
                                 }
                             }
                         ];
@@ -104,7 +105,7 @@ function trezor(options) {
                         publicKey: compress(publicKey),
                         chainCode: chainCode || '',
                         path: derivationPath
-                    }, asset, provider);
+                    }, asset, ethersProvider);
                 };
                 const getAccountFromAccountSelect = async () => {
                     accounts = await accountSelect({
@@ -213,9 +214,20 @@ function trezor(options) {
                         signingAccount = accounts.find(account => account.address === transactionObject.from);
                     }
                     signingAccount = signingAccount ? signingAccount : accounts[0];
-                    const { derivationPath } = signingAccount;
+                    const { derivationPath, address } = signingAccount;
+                    transactionObject.gasLimit =
+                        transactionObject.gas || transactionObject.gasLimit;
+                    // 'gas' is an invalid property for the TransactionRequest type
+                    delete transactionObject.gas;
+                    const signer = ethersProvider.getSigner(address);
+                    const populatedTransaction = await signer.populateTransaction(transactionObject);
+                    if (populatedTransaction.hasOwnProperty('nonce') &&
+                        typeof populatedTransaction.nonce === 'number') {
+                        populatedTransaction.nonce = populatedTransaction.nonce.toString(16);
+                    }
+                    const updateBigNumberFields = bigNumberFieldsToStrings(populatedTransaction);
                     // Set the `from` field to the currently selected account
-                    const transactionData = createTrezorTransactionObject(transactionObject);
+                    const transactionData = createTrezorTransactionObject(updateBigNumberFields);
                     const chainId = currentChain.hasOwnProperty('id')
                         ? Number.parseInt(currentChain.id)
                         : 1;
@@ -237,7 +249,7 @@ function trezor(options) {
                     }
                     v = cv.toString(16);
                     const signedTx = Transaction.fromTxData({
-                        ...transactionData,
+                        ...populatedTransaction,
                         v: `0x${v}`,
                         r: r,
                         s: s

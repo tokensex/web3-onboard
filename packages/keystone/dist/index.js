@@ -50,17 +50,21 @@ function keystone({ customNetwork } = {}) {
             getInterface: async ({ EventEmitter, chains }) => {
                 const { StaticJsonRpcProvider } = await import('@ethersproject/providers');
                 const { default: AirGappedKeyring } = await import('@keystonehq/eth-keyring');
+                // @ts-ignore super weird esm issue where the default export is an object with a property default on it
+                // if that is the case then we just grab the default value
+                AirGappedKeyring = (AirGappedKeyring === null || AirGappedKeyring === void 0 ? void 0 : AirGappedKeyring.default) || AirGappedKeyring;
                 const { TransactionFactory: Transaction } = await import('@ethereumjs/tx');
-                const { accountSelect, createEIP1193Provider, ProviderRpcError, ProviderRpcErrorCode, getCommon } = await import('@web3-onboard/common');
+                const { accountSelect, createEIP1193Provider, ProviderRpcError, ProviderRpcErrorCode, getCommon, bigNumberFieldsToStrings } = await import('@web3-onboard/common');
                 const keyring = AirGappedKeyring.getEmptyKeyring();
                 await keyring.readKeyring();
                 const eventEmitter = new EventEmitter();
+                let ethersProvider;
                 let currentChain = chains[0];
-                const scanAccounts = async ({ derivationPath, chainId, asset }) => {
+                const scanAccounts = async ({ chainId }) => {
                     currentChain =
                         chains.find(({ id }) => id === chainId) || currentChain;
-                    const provider = new StaticJsonRpcProvider(currentChain.rpcUrl);
-                    return generateAccounts(keyring, provider);
+                    ethersProvider = new StaticJsonRpcProvider(currentChain.rpcUrl);
+                    return generateAccounts(keyring, ethersProvider);
                 };
                 const getAccounts = async () => {
                     accounts = await accountSelect({
@@ -135,11 +139,27 @@ function keystone({ customNetwork } = {}) {
                         const common = await getCommon({ customNetwork, chainId });
                         transactionObject.gasLimit =
                             transactionObject.gas || transactionObject.gasLimit;
-                        const transaction = Transaction.fromTxData({
-                            ...transactionObject
-                        }, { common, freeze: false });
-                        // @ts-ignore
-                        const signedTx = await keyring.signTransaction(from, transaction);
+                        // 'gas' is an invalid property for the TransactionRequest type
+                        delete transactionObject.gas;
+                        const signer = ethersProvider.getSigner(from);
+                        let populatedTransaction = bigNumberFieldsToStrings(await signer.populateTransaction(transactionObject));
+                        const transaction = Transaction.fromTxData(populatedTransaction, {
+                            common,
+                            freeze: false
+                        });
+                        let signedTx;
+                        try {
+                            // @ts-ignore
+                            signedTx = await keyring.signTransaction(from, transaction);
+                        }
+                        catch (error) {
+                            if (error.message && error.message.message) {
+                                throw new Error(error.message.message);
+                            }
+                            else {
+                                throw new Error(error);
+                            }
+                        }
                         return `0x${signedTx.serialize().toString('hex')}`;
                     },
                     eth_sendTransaction: async ({ baseRequest, params }) => {

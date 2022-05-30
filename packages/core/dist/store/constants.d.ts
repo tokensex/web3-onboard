@@ -6,3 +6,4 @@ export declare const REMOVE_WALLET = "remove_wallet";
 export declare const UPDATE_ACCOUNT = "update_account";
 export declare const UPDATE_ACCOUNT_CENTER = "update_account_center";
 export declare const SET_WALLET_MODULES = "set_wallet_modules";
+export declare const SET_LOCALE = "set_locale";

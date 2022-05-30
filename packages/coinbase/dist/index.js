@@ -1,8 +1,7 @@
-function coinbaseWallet(options) {
-    const { darkMode = false } = options || {};
+function coinbaseWallet({ darkMode = false } = {}) {
     return () => {
         return {
-            label: 'Coinbase',
+            label: 'Coinbase Wallet',
             getIcon: async () => (await import('./icon.js')).default,
             getInterface: async ({ chains, appMetadata }) => {
                 const [chain] = chains;

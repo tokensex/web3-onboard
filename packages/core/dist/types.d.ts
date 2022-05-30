@@ -73,6 +73,7 @@ export interface AppState {
     walletModules: WalletModule[];
     wallets: WalletState[];
     accountCenter: AccountCenter;
+    locale: Locale;
 }
 export declare type InternalState = {
     svelteInstance: SvelteComponent | null;
@@ -83,18 +84,17 @@ export declare type Locale = string;
 export declare type i18nOptions = Record<Locale, i18n>;
 export declare type i18n = typeof en;
 export declare type AccountCenterPosition = 'topRight' | 'bottomRight' | 'bottomLeft' | 'topLeft';
-export declare type AccountCenterOptions = {
-    desktop?: {
-        position?: AccountCenterPosition;
-        enabled?: AccountCenter['enabled'];
-    };
-};
 export declare type AccountCenter = {
     enabled: boolean;
-    position: AccountCenterPosition;
-    expanded: boolean;
+    position?: AccountCenterPosition;
+    expanded?: boolean;
+    minimal?: boolean;
 };
-export declare type Action = AddChainsAction | AddWalletAction | UpdateWalletAction | RemoveWalletAction | ResetStoreAction | UpdateAccountAction | UpdateAccountCenterAction | SetWalletModulesAction;
+export declare type AccountCenterOptions = {
+    desktop: Omit<AccountCenter, 'expanded'>;
+    mobile: Omit<AccountCenter, 'expanded'>;
+};
+export declare type Action = AddChainsAction | AddWalletAction | UpdateWalletAction | RemoveWalletAction | ResetStoreAction | UpdateAccountAction | UpdateAccountCenterAction | SetWalletModulesAction | SetLocaleAction;
 export declare type AddChainsAction = {
     type: 'add_chains';
     payload: Chain[];
@@ -133,6 +133,10 @@ export declare type UpdateAccountCenterAction = {
 export declare type SetWalletModulesAction = {
     type: 'set_wallet_modules';
     payload: WalletModule[];
+};
+export declare type SetLocaleAction = {
+    type: 'set_locale';
+    payload: string;
 };
 export declare type ChainStyle = {
     icon: string;

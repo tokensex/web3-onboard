@@ -8,3 +8,4 @@ export declare function updateAccount(id: string, address: string, update: Parti
 export declare function updateAccountCenter(update: AccountCenter | Partial<AccountCenter>): void;
 export declare function resetStore(): void;
 export declare function setWalletModules(wallets: WalletInit[]): void;
+export declare function setLocale(locale: string): void;

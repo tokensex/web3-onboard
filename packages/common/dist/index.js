@@ -1229,7 +1229,7 @@ function add_css$3(target) {
 	append_styles(target, "svelte-hq4jpr", "button.svelte-hq4jpr{align-items:center;padding:0.75rem 1.5rem;color:var(--account-select-white, var(--onboard-white, var(--white)));border-radius:1.5rem;font-family:var(\n      --account-select-font-family-normal,\n      var(--font-family-normal, var(--font-family-normal))\n    );font-style:normal;font-weight:bold;font-size:var(\n      --account-select-font-size-5,\n      var(--onboard-font-size-5, var(--font-size-5))\n    );line-height:var(\n      --account-select-font-line-height-1,\n      var(--onboard-line-height-1, var(--line-height-1))\n    );border:none}.scan-accounts-btn.svelte-hq4jpr{line-height:var(\n      --account-select-font-line-height-1,\n      var(--onboard-line-height-1, var(--line-height-1))\n    );background:var(\n      --account-select-gray-500,\n      var(--onboard-gray-500, var(--gray-500))\n    );color:var(\n      --account-select-primary-100,\n      var(--onboard-primary-100, var(--primary-100))\n    );display:flex;justify-content:center;align-items:center;cursor:pointer}input.svelte-hq4jpr:hover{border-color:var(\n      --account-select-primary-500,\n      var(--onboard-primary-300, var(--primary-300))\n    )}input.svelte-hq4jpr:focus{border-color:var(\n      --account-select-primary-500,\n      var(--onboard-primary-500, var(--primary-500))\n    );box-shadow:0 0 1px 1px\n      var(\n        --account-select-primary-500,\n        var(--onboard-primary-500, var(--primary-500))\n      );box-shadow:0 0 0 1px -moz-mac-focusring;outline:none}input.svelte-hq4jpr:disabled{background-color:var(\n      --account-select-gray-100,\n      var(--onboard-gray-100, var(--gray-100))\n    )}input[type='checkbox'].svelte-hq4jpr{-webkit-appearance:none;width:auto;background-color:var(\n      --account-select-white,\n      var(--onboard-white, var(--white))\n    );border:1px solid\n      var(--account-select-gray-300, var(--onboard-gray-300, var(--gray-300)));padding:0.5em;border-radius:3px;display:flex;justify-content:center;align-items:center;position:relative;cursor:pointer;height:1.5rem;width:1.5rem}input[type='checkbox'].svelte-hq4jpr:hover{border-color:var(\n      --account-select-primary-500,\n      var(--onboard-primary-500, var(--primary-500))\n    )}input[type='checkbox'].svelte-hq4jpr:checked{background-color:var(\n      --account-select-primary-500,\n      var(--onboard-primary-500, var(--primary-500))\n    );border-color:var(\n      --account-select-primary-500,\n      var(--onboard-primary-500, var(--primary-500))\n    );color:var(--account-select-white, var(--onboard-white, var(--white)))}input[type='checkbox'].svelte-hq4jpr:checked:after{content:url(\"data:image/svg+xml,%3Csvg width='0.885em' height='0.6em' viewBox='0 0 14 11' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M0 6L5 11L14 2L12.59 0.58L5 8.17L1.41 4.59L0 6Z' fill='white'/%3E%3C/svg%3E\");font-size:var(\n      --account-select-font-size-7,\n      var(--onboard-font-size-7, var(--font-size-7))\n    );position:absolute;color:var(--account-select-white, var(--onboard-white, var(--white)))}.checkbox-container.svelte-hq4jpr{display:flex;align-items:center}.checkbox-input.svelte-hq4jpr{margin-right:0.75rem}.error-msg.svelte-hq4jpr{color:var(\n      --account-select-danger-500,\n      var(--onboard-danger-500, var(--danger-500))\n    );font-family:var(\n      --account-select-font-family-light,\n      var(--font-family-light)\n    )}.table-controls.svelte-hq4jpr{height:3.5rem;display:flex;flex-direction:row;justify-content:space-between;align-items:center;padding:0.5rem;border-radius:0.4rem 0.4rem 0 0;background:var(\n      --account-select-gray-100,\n      var(--onboard-gray-100, var(--gray-100))\n    );border-bottom:1px solid\n      var(--account-select-gray-200, var(--onboard-gray-200, var(--gray-200)))}.cursor-pointer.svelte-hq4jpr{cursor:pointer}");
 }
 
-// (183:2) {#if errorFromScan}
+// (180:2) {#if errorFromScan}
 function create_if_block_2$1(ctx) {
 	let span;
 	let t;
@@ -1237,7 +1237,7 @@ function create_if_block_2$1(ctx) {
 	return {
 		c() {
 			span = element("span");
-			t = text(/*errorFromScan*/ ctx[2]);
+			t = text(/*errorFromScan*/ ctx[3]);
 			attr(span, "class", "error-msg svelte-hq4jpr");
 		},
 		m(target, anchor) {
@@ -1245,7 +1245,7 @@ function create_if_block_2$1(ctx) {
 			append(span, t);
 		},
 		p(ctx, dirty) {
-			if (dirty & /*errorFromScan*/ 4) set_data(t, /*errorFromScan*/ ctx[2]);
+			if (dirty & /*errorFromScan*/ 8) set_data(t, /*errorFromScan*/ ctx[3]);
 		},
 		d(detaching) {
 			if (detaching) detach(span);
@@ -1253,7 +1253,7 @@ function create_if_block_2$1(ctx) {
 	};
 }
 
-// (191:4) {#if loadingAccounts}
+// (188:4) {#if loadingAccounts}
 function create_if_block_1$1(ctx) {
 	let t;
 	let spinner;
@@ -1286,7 +1286,7 @@ function create_if_block_1$1(ctx) {
 	};
 }
 
-// (195:4) {#if !loadingAccounts}
+// (192:4) {#if !loadingAccounts}
 function create_if_block$2(ctx) {
 	let t;
 
@@ -1316,9 +1316,9 @@ function create_fragment$3(ctx) {
 	let current;
 	let mounted;
 	let dispose;
-	let if_block0 = /*errorFromScan*/ ctx[2] && create_if_block_2$1(ctx);
-	let if_block1 = /*loadingAccounts*/ ctx[1] && create_if_block_1$1();
-	let if_block2 = !/*loadingAccounts*/ ctx[1] && create_if_block$2();
+	let if_block0 = /*errorFromScan*/ ctx[3] && create_if_block_2$1(ctx);
+	let if_block1 = /*loadingAccounts*/ ctx[2] && create_if_block_1$1();
+	let if_block2 = !/*loadingAccounts*/ ctx[2] && create_if_block$2();
 
 	return {
 		c() {
@@ -1349,6 +1349,7 @@ function create_fragment$3(ctx) {
 			insert(target, div1, anchor);
 			append(div1, div0);
 			append(div0, input);
+			input.checked = /*showEmptyAddresses*/ ctx[0];
 			append(div0, t0);
 			append(div0, label);
 			append(div1, t2);
@@ -1362,7 +1363,7 @@ function create_fragment$3(ctx) {
 
 			if (!mounted) {
 				dispose = [
-					listen(input, "change", /*filterEmptyAccounts*/ ctx[3]),
+					listen(input, "change", /*input_change_handler*/ ctx[4]),
 					listen(button, "click", /*click_handler*/ ctx[5])
 				];
 
@@ -1370,7 +1371,11 @@ function create_fragment$3(ctx) {
 			}
 		},
 		p(ctx, [dirty]) {
-			if (/*errorFromScan*/ ctx[2]) {
+			if (dirty & /*showEmptyAddresses*/ 1) {
+				input.checked = /*showEmptyAddresses*/ ctx[0];
+			}
+
+			if (/*errorFromScan*/ ctx[3]) {
 				if (if_block0) {
 					if_block0.p(ctx, dirty);
 				} else {
@@ -1383,9 +1388,9 @@ function create_fragment$3(ctx) {
 				if_block0 = null;
 			}
 
-			if (/*loadingAccounts*/ ctx[1]) {
+			if (/*loadingAccounts*/ ctx[2]) {
 				if (if_block1) {
-					if (dirty & /*loadingAccounts*/ 2) {
+					if (dirty & /*loadingAccounts*/ 4) {
 						transition_in(if_block1, 1);
 					}
 				} else {
@@ -1404,7 +1409,7 @@ function create_fragment$3(ctx) {
 				check_outros();
 			}
 
-			if (!/*loadingAccounts*/ ctx[1]) {
+			if (!/*loadingAccounts*/ ctx[2]) {
 				if (if_block2) ; else {
 					if_block2 = create_if_block$2();
 					if_block2.c();
@@ -1441,25 +1446,26 @@ function instance$3($$self, $$props, $$invalidate) {
 	let { showEmptyAddresses } = $$props;
 	let { errorFromScan } = $$props;
 
-	const filterEmptyAccounts = () => {
-		$$invalidate(4, showEmptyAddresses = !showEmptyAddresses);
-	};
+	function input_change_handler() {
+		showEmptyAddresses = this.checked;
+		$$invalidate(0, showEmptyAddresses);
+	}
 
 	const click_handler = async () => await scanAccounts();
 
 	$$self.$$set = $$props => {
-		if ('scanAccounts' in $$props) $$invalidate(0, scanAccounts = $$props.scanAccounts);
-		if ('loadingAccounts' in $$props) $$invalidate(1, loadingAccounts = $$props.loadingAccounts);
-		if ('showEmptyAddresses' in $$props) $$invalidate(4, showEmptyAddresses = $$props.showEmptyAddresses);
-		if ('errorFromScan' in $$props) $$invalidate(2, errorFromScan = $$props.errorFromScan);
+		if ('scanAccounts' in $$props) $$invalidate(1, scanAccounts = $$props.scanAccounts);
+		if ('loadingAccounts' in $$props) $$invalidate(2, loadingAccounts = $$props.loadingAccounts);
+		if ('showEmptyAddresses' in $$props) $$invalidate(0, showEmptyAddresses = $$props.showEmptyAddresses);
+		if ('errorFromScan' in $$props) $$invalidate(3, errorFromScan = $$props.errorFromScan);
 	};
 
 	return [
+		showEmptyAddresses,
 		scanAccounts,
 		loadingAccounts,
 		errorFromScan,
-		filterEmptyAccounts,
-		showEmptyAddresses,
+		input_change_handler,
 		click_handler
 	];
 }
@@ -1475,10 +1481,10 @@ class TableHeader extends SvelteComponent {
 			create_fragment$3,
 			safe_not_equal,
 			{
-				scanAccounts: 0,
-				loadingAccounts: 1,
-				showEmptyAddresses: 4,
-				errorFromScan: 2
+				scanAccounts: 1,
+				loadingAccounts: 2,
+				showEmptyAddresses: 0,
+				errorFromScan: 3
 			},
 			add_css$3
 		);
@@ -2250,7 +2256,7 @@ function instance$2($$self, $$props, $$invalidate) {
 	let accountsListObject;
 	let accountSelected;
 	let customDerivationPath = false;
-	let showEmptyAddresses = false;
+	let showEmptyAddresses = true;
 	let loadingAccounts = false;
 	let errorFromScan = '';
 
@@ -2311,7 +2317,7 @@ function instance$2($$self, $$props, $$invalidate) {
 	const resetModal = () => {
 		$$invalidate(1, accountSelected = undefined);
 		$$invalidate(0, accountsListObject = undefined);
-		$$invalidate(3, showEmptyAddresses = false);
+		$$invalidate(3, showEmptyAddresses = true);
 		$$invalidate(6, scanAccountOptions.derivationPath = basePaths[0] && basePaths[0].value || '', scanAccountOptions);
 	};
 
@@ -3234,5 +3240,19 @@ const getCommon = async ({ customNetwork, chainId }) => {
     }
     return common;
 };
+/**
+ * Takes in TransactionRequest and converts all BigNumber values to strings
+ * @param transaction
+ * @returns a transaction where all BigNumber properties are now strings
+ */
+const bigNumberFieldsToStrings = (transaction) => Object.keys(transaction).reduce((transaction, txnProperty) => ({
+    ...transaction,
+    ...(transaction[txnProperty]
+        .toHexString
+        ? {
+            [txnProperty]: transaction[txnProperty].toHexString()
+        }
+        : {})
+}), transaction);
 
-export { ProviderRpcError, ProviderRpcErrorCode, SofiaProLight, SofiaProRegular, SofiaProSemiBold, accountSelect, createEIP1193Provider, entryModal, getCommon };
+export { ProviderRpcError, ProviderRpcErrorCode, SofiaProLight, SofiaProRegular, SofiaProSemiBold, accountSelect, bigNumberFieldsToStrings, createEIP1193Provider, entryModal, getCommon };
