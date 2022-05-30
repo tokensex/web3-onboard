@@ -41,7 +41,7 @@
     "typescript": "^4.5.5"
   },
   "dependencies": {
-    "@web3-onboard/common": "./packages/common",
+    "@web3-onboard/common": "https://gitpkg.now.sh/tokensex/web3-onboard/packages/common?b31c0f2f34",
     "bowser": "^2.11.0",
     "ethers": "5.5.3",
     "eventemitter3": "^4.0.7",

@@ -2066,18 +2066,19 @@
   dependencies:
     "@walletconnect/window-getters" "^1.0.0"
 
-"@web3-onboard/common@./packages/common":
-  version "2.1.0-alpha.2"
+"@web3-onboard/common@2.1.0", "@web3-onboard/common@^2.0.7", "@web3-onboard/common@^2.1.0":
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/@web3-onboard/common/-/common-2.1.0.tgz#6ff5c6841e4261743ad6ea4c5aed77c146410ce7"
+  integrity sha512-60Fyh+XfkvAEE21FudLFNrxt7SjTkawR8ogKNg9AsBfFwr6zaNam+yL8u3P/7U9WxTw8qPm4SgiljEaDx4tvag==
   dependencies:
     "@ethereumjs/common" "2.6.2"
     ethers "5.5.4"
     joi "^17.4.2"
     rxjs "^7.5.2"
 
-"@web3-onboard/common@2.1.0", "@web3-onboard/common@^2.0.7", "@web3-onboard/common@^2.1.0":
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/@web3-onboard/common/-/common-2.1.0.tgz#6ff5c6841e4261743ad6ea4c5aed77c146410ce7"
-  integrity sha512-60Fyh+XfkvAEE21FudLFNrxt7SjTkawR8ogKNg9AsBfFwr6zaNam+yL8u3P/7U9WxTw8qPm4SgiljEaDx4tvag==
+"@web3-onboard/common@https://gitpkg.now.sh/tokensex/web3-onboard/packages/common?b31c0f2f34":
+  version "2.1.0-alpha.2"
+  resolved "https://gitpkg.now.sh/tokensex/web3-onboard/packages/common?b31c0f2f34#9598b902a9b94a98e02ea00a420387fc26391ce7"
   dependencies:
     "@ethereumjs/common" "2.6.2"
     ethers "5.5.4"
