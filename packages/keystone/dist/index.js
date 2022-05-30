@@ -49,7 +49,7 @@ function keystone({ customNetwork } = {}) {
             getIcon,
             getInterface: async ({ EventEmitter, chains }) => {
                 const { StaticJsonRpcProvider } = await import('@ethersproject/providers');
-                const { default: AirGappedKeyring } = await import('@keystonehq/eth-keyring');
+                let { default: AirGappedKeyring } = await import('@keystonehq/eth-keyring');
                 // @ts-ignore super weird esm issue where the default export is an object with a property default on it
                 // if that is the case then we just grab the default value
                 AirGappedKeyring = (AirGappedKeyring === null || AirGappedKeyring === void 0 ? void 0 : AirGappedKeyring.default) || AirGappedKeyring;
